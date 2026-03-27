@@ -33,7 +33,6 @@
         .cta-button { padding: 16px 32px; background: transparent; border: 1.5px solid var(--primary); color: var(--primary); cursor: pointer; letter-spacing: 0.05em; transition: 0.3s; width: 100%; border-radius: 12px; font-size: 0.95rem; font-weight: bold;}
         .cta-button.primary { background: var(--primary); color: #fff; }
         .cta-button:hover:not(:disabled) { background: #7A5531; color: #fff; box-shadow: 0 5px 15px rgba(140, 98, 57, 0.3); transform: translateY(-1px); }
-        .cta-button:disabled { opacity: 0.4; cursor: not-allowed; border-color: var(--text-muted); color: var(--text-muted); background: transparent; box-shadow: none; }
         
         .option-btn { width: 100%; padding: clamp(20px, 4vw, 25px); margin: 12px 0; background: #fff; border: 1px solid var(--border-color); color: var(--text-main); border-radius: 16px; cursor: pointer; text-align: left; transition: 0.3s; font-size: 1.05rem; box-shadow: 0 2px 8px rgba(0,0,0,0.02);}
         .option-btn:hover { border-color: var(--primary); box-shadow: 0 4px 12px rgba(140, 98, 57, 0.1); transform: translateY(-2px); }
@@ -44,7 +43,6 @@
         .dropdown-container { position: relative; display: inline-block; }
         .kebab-btn { font-size: 1.4rem; padding: 5px 10px; border-radius: 50%; font-weight: bold; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; }
         .kebab-btn:hover { background: rgba(0,0,0,0.05); }
-        
         .dropdown-menu { position: absolute; right: 0; top: 120%; background: #fff; border: 1px solid var(--border-color); border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); min-width: 240px; z-index: 100; display: flex; flex-direction: column; opacity: 0; transform: translateY(-10px); pointer-events: none; transition: 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); overflow: hidden; }
         .dropdown-menu.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
         .dropdown-menu a { padding: 16px 24px; text-decoration: none; color: var(--text-main); font-size: 0.95rem; transition: 0.2s; display: flex; align-items: center; gap: 12px; }
@@ -60,29 +58,82 @@
         .db-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: clamp(20px, 4vw, 30px); margin-top: 30px; }
         .db-item { background: #fff; padding: clamp(25px, 5vw, 35px); border-radius: 20px; border: 1px solid var(--border-color); box-shadow: 0 4px 15px rgba(0,0,0,0.02); box-sizing: border-box;}
         
-        ul.log-list { list-style: none; padding: 0; margin: 0; max-height: 500px; overflow-y: auto; }
-        ul.log-list li { padding: clamp(20px, 4vw, 30px) 0; border-bottom: 1px solid var(--border-color); }
-        
-        .fav-btn { color: #ccc; font-size: 1.4rem; transition: 0.3s transform; padding: 0; background: none; }
-        .fav-btn.active { color: var(--danger); }
-        .fav-btn:hover { transform: scale(1.2); background: none; }
-
+        /* OMOカード部分 */
         .omo-card { display: flex; flex-wrap: wrap; gap: clamp(20px, 5vw, 40px); align-items: stretch; background: #fff; padding: clamp(30px, 5vw, 40px); border-radius: 20px; border: 1px solid var(--border-color); margin-bottom: 40px; box-shadow: 0 4px 15px rgba(0,0,0,0.02); box-sizing: border-box; }
-        
-        .radar-chart-container { display: flex; align-items: center; justify-content: center; background: #fff; border-radius: 16px; padding: 20px; border: 1px solid #eee; margin-right: clamp(10px, 3vw, 20px); }
-
+        .radar-chart-container { display: flex; align-items: center; justify-content: center; background: #fff; border-radius: 16px; padding: 15px; border: 1px solid #eee; margin-right: clamp(10px, 3vw, 20px); }
         .taste-details-box { background: #f9f9f9; border-radius: 16px; padding: clamp(20px, 4vw, 30px); font-size: 0.95rem; color: var(--text-muted); border: 1px solid #f0f0f0; display: flex; gap: clamp(15px, 4vw, 30px); align-items: center; flex-wrap: wrap; }
+
+        /* =========================================================
+           ✨ 新設計：レスポンシブに完全対応したログ/口コミカード UI
+           ========================================================= */
+        ul.log-list { 
+            list-style: none; padding: 0 10px 0 0; margin: 0; 
+            max-height: 600px; overflow-y: auto; 
+            scrollbar-width: thin; scrollbar-color: rgba(0,0,0,0.15) transparent;
+            display: flex; flex-direction: column; gap: clamp(15px, 4vw, 25px); /* リストの間隔 */
+        }
+        ul.log-list::-webkit-scrollbar { width: 6px; }
+        ul.log-list::-webkit-scrollbar-track { background: transparent; }
+        ul.log-list::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.15); border-radius: 10px; }
+
+        /* 共通カードスタイル */
+        .log-card {
+            background: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: clamp(20px, 5vw, 35px); /* ゆったりした余白 */
+            box-shadow: 0 4px 20px rgba(0,0,0,0.02);
+            display: flex; flex-direction: column; gap: 15px;
+            box-sizing: border-box;
+            transition: 0.3s ease;
+        }
+        .log-card:hover { box-shadow: 0 6px 25px rgba(0,0,0,0.05); transform: translateY(-1px); }
         
-        .review-card { background: #fdfdfd; padding: clamp(25px, 5vw, 35px); border-radius: 20px; border: 1px solid #eee; margin-bottom: 25px; box-sizing: border-box; box-shadow: 0 4px 15px rgba(0,0,0,0.01);}
-        .review-header { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; }
-        .avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; justify-content: center; align-items: center; font-size: 1.1rem; font-weight: bold; flex-shrink: 0;}
+        /* おすすめ用ハイライト */
+        .log-card.highlight { background: var(--highlight); border-color: #EEDC9A; }
+
+        .log-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 15px; flex-wrap: wrap; }
+        .log-user-info { display: flex; align-items: center; gap: 15px; flex: 1; min-width: 200px; }
+        .log-meta { display: flex; flex-direction: column; gap: 4px; }
         
+        .log-title { font-size: clamp(1.15rem, 3.5vw, 1.35rem); color: var(--primary); line-height: 1.3; }
+        .log-subtitle { font-size: 0.85rem; color: var(--text-muted); }
+        
+        .avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; justify-content: center; align-items: center; font-size: 1.1rem; font-weight: bold; flex-shrink: 0; }
+        
+        .fav-btn { color: #ccc; font-size: 1.5rem; transition: 0.3s transform; padding: 0; background: none; flex-shrink: 0; }
+        .fav-btn.active { color: var(--danger); }
+        .fav-btn:hover { transform: scale(1.2); }
+
+        /* 中身のレイアウト */
+        .log-body { display: flex; flex-direction: column; gap: 12px; padding-left: 59px; /* アバター幅44px + gap15px に揃える */ }
+        .log-address { font-size: 0.85rem; color: var(--text-muted); }
+        
+        .log-taste-bar { font-size: 0.9rem; color: var(--text-muted); background: #f9f9f9; padding: 12px 18px; border-radius: 8px; border: 1px solid #f0f0f0; display: inline-block; width: fit-content; line-height: 1.5;}
+        .log-taste-bar strong { color: var(--text-main); }
+        
+        .log-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+        .mini-tag { display: inline-block; padding: 5px 12px; background: #f0f0f0; border-radius: 6px; font-size: 0.8rem; color: var(--text-main); }
+        
+        .log-comment { font-size: clamp(0.95rem, 2.5vw, 1.05rem); line-height: 1.7; padding: 16px 20px; background: #fdfdfd; border-radius: 12px; border-left: 4px solid var(--accent); color: var(--text-main); box-shadow: inset 0 0 10px rgba(0,0,0,0.01); }
+
+        /* アクションボタン群 */
+        .log-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 5px; }
+        .action-btn { background: transparent; border: 1px solid #ddd; color: var(--text-muted); padding: 10px 16px; border-radius: 8px; font-size: 0.9rem; cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; white-space: nowrap;}
+        .action-btn:hover { background: #f0f0f0; }
+        .action-btn.danger { color: var(--danger); border-color: rgba(231, 76, 60, 0.3); }
+        .action-btn.danger:hover { background: rgba(231, 76, 60, 0.05); }
+        .action-btn.map { color: var(--primary); border-color: var(--primary); }
+        .action-btn.map:hover { background: rgba(140, 98, 57, 0.05); }
+
         .empty-state { text-align: center; padding: 50px 20px; background: #fdfdfd; border-radius: 20px; border: 2px dashed #eee; margin-top: 15px;}
 
-        /* --- モーダル & フォーム --- */
+        /* モーダル */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); display: flex; justify-content: center; align-items: center; z-index: 1000; transition: opacity 0.3s; padding: 15px; box-sizing: border-box;}
         .modal-overlay.hidden { opacity: 0; pointer-events: none; }
-        .modal-content { background: #fff; border-radius: 24px; padding: clamp(30px, 6vw, 45px); width: 100%; max-width: 650px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 40px rgba(0,0,0,0.15); box-sizing: border-box;}
+        .modal-content { background: #fff; border-radius: 24px; padding: clamp(30px, 6vw, 45px); width: 100%; max-width: 650px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 40px rgba(0,0,0,0.15); box-sizing: border-box; scrollbar-width: thin; scrollbar-color: rgba(0,0,0,0.15) transparent;}
+        .modal-content::-webkit-scrollbar { width: 6px; }
+        .modal-content::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.15); border-radius: 10px; }
         
         input[type="text"], textarea { width: 100%; padding: clamp(16px, 3vw, 18px); margin-bottom: 24px; background: #f9f9f9; border: 1px solid var(--border-color); color: var(--text-main); border-radius: 12px; box-sizing: border-box; font-size: 1.05rem; font-family: inherit; }
         
@@ -94,7 +145,6 @@
         .tag-container { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
         .flavor-tag { padding: 10px 18px; border-radius: 24px; font-size: 0.85rem; border: 1px solid var(--border-color); background: #f9f9f9; cursor: pointer; transition: 0.2s; color: var(--text-muted); }
         .flavor-tag.selected { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: bold; transform: scale(1.05); }
-        .mini-tag { display: inline-block; padding: 6px 12px; background: #f4f4f4; border-radius: 8px; font-size: 0.8rem; color: var(--text-main); margin-right: 8px; margin-bottom: 8px;}
 
         .progress-bar-container { width: 100%; height: 8px; background: #e0e0e0; border-radius: 4px; margin-bottom: 35px; overflow: hidden; }
         .progress-bar-fill { height: 100%; background: var(--primary); transition: width 0.4s ease; width: 0%; }
@@ -102,28 +152,31 @@
         #toast { position: fixed; bottom: -60px; left: 50%; transform: translateX(-50%); background: var(--text-main); color: #fff; padding: 16px 32px; border-radius: 30px; font-size: 1rem; font-weight: bold; box-shadow: 0 4px 20px rgba(0,0,0,0.2); transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 2000; white-space: nowrap;}
         #toast.show { bottom: 40px; }
 
-        .map-container { width: 100%; height: 350px; border-radius: 16px; overflow: hidden; border: 1px solid var(--border-color); margin-bottom: 25px; background: #eee; }
+        .map-container { width: 100%; height: clamp(250px, 40vw, 350px); border-radius: 16px; overflow: hidden; border: 1px solid var(--border-color); margin-bottom: 25px; background: #eee; }
         .map-container iframe { width: 100%; height: 100%; border: none; }
 
         /* =======================================================
-           📱 スマートフォン向けメディアクエリ（768px以下で適用）
+           📱 スマートフォン向け完全最適化
            ======================================================= */
-        @media screen and (max-width: 768px) {
-            /* ヘッダーの要素を縦積みにし、レイアウトを最適化 */
+        @media screen and (max-width: 600px) {
             .dashboard-header { flex-direction: column; align-items: flex-start; gap: 20px; }
             .dashboard-header-actions { width: 100%; display: flex; justify-content: space-between; align-items: center; }
             
-            /* OMOカード（QR＋チャート）を縦積みにし、中央寄せ */
-            .omo-card { flex-direction: column; align-items: center; text-align: center; }
-            .taste-details-box { flex-direction: column; align-items: center; text-align: center; gap: 15px; }
+            .omo-card { flex-direction: column; align-items: center; text-align: center; padding: 25px 20px; }
+            .taste-details-box { flex-direction: column; align-items: center; text-align: center; gap: 15px; padding: 20px 15px;}
             .radar-chart-container { margin-right: 0; margin-bottom: 10px; width: 100%; max-width: 250px; }
             #qr-summary-text { text-align: left; }
             
-            /* ログアイテムのボタン群の余白調整 */
-            .log-actions-group { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }
-
-            /* マップの高さをスマホ用に調整 */
-            .map-container { height: 280px; }
+            /* スマホ時のカード内レイアウト変更 */
+            .log-header { flex-direction: column; align-items: flex-start; }
+            .log-user-info { width: 100%; }
+            /* スマホでは左の字下げをなくして画面幅をフルに使う */
+            .log-body { padding-left: 0; }
+            .log-taste-bar { width: 100%; box-sizing: border-box; }
+            
+            /* ボタンが画面幅いっぱいに広がるように */
+            .log-actions { width: 100%; flex-direction: column; }
+            .action-btn { width: 100%; }
         }
     </style>
 </head>
@@ -190,7 +243,7 @@
                         <div id="qr-container" style="background: white; padding: 12px; border-radius: 12px; border: 1px solid #eee;">
                             <div id="qr-code" aria-label="店舗提示用QRコード"></div>
                         </div>
-                        <button class="icon-btn" onclick="downloadQR()" style="font-size: 0.9rem; border: 1px solid #ddd; padding: 8px 16px; border-radius: 8px;">↓ QRを画像で保存</button>
+                        <button class="action-btn" onclick="downloadQR()" style="font-size: 0.9rem;">↓ QRを画像で保存</button>
                     </div>
                     
                     <div style="flex: 1; min-width: 280px;">
@@ -233,17 +286,21 @@
                 </div>
 
                 <div class="db-grid" style="margin-top: 0;">
-                    <div class="db-item" style="background: var(--highlight); border: 1px solid var(--accent);">
-                        <h3 style="margin: 0 0 15px; color: var(--primary);">✨ FOR YOU (おすすめのカフェ)</h3>
-                        <p style="font-size: 0.95rem; color: var(--text-muted); margin-bottom: 25px;">
-                            あなたの(♥)データの傾向と、みんなの口コミを照合し提案します。
-                        </p>
-                        <ul id="recommend-list" class="log-list" style="max-height: 450px;"></ul>
+                    <div class="db-item" style="background: var(--highlight); border: 1px solid var(--accent); padding: 0; overflow: hidden;">
+                        <div style="padding: clamp(20px, 5vw, 30px);">
+                            <h3 style="margin: 0 0 10px; color: var(--primary);">✨ FOR YOU (おすすめのカフェ)</h3>
+                            <p style="font-size: 0.95rem; color: var(--text-muted); margin-bottom: 20px;">
+                                あなたの(♥)データの傾向と、みんなの口コミを照合し提案します。
+                            </p>
+                        </div>
+                        <ul id="recommend-list" class="log-list" style="max-height: 450px; padding: 0 20px 20px 20px;"></ul>
                     </div>
                     
-                    <div class="db-item">
-                        <h3 style="margin: 0 0 20px;">🌍 みんなの口コミタイムライン</h3>
-                        <ul id="community-log-list" class="log-list" style="max-height: 500px;"></ul>
+                    <div class="db-item" style="padding: 0; overflow: hidden;">
+                        <div style="padding: clamp(20px, 5vw, 30px) clamp(20px, 5vw, 30px) 10px clamp(20px, 5vw, 30px);">
+                            <h3 style="margin: 0;">🌍 みんなの口コミ</h3>
+                        </div>
+                        <ul id="community-log-list" class="log-list" style="max-height: 500px; padding: 0 20px 20px 20px;"></ul>
                     </div>
                 </div>
             </div>
@@ -259,7 +316,7 @@
             
             <input type="text" id="shop-name" placeholder="カフェ名 または 豆の名前" aria-label="カフェ名 または 豆の名前" required>
             <input type="text" id="shop-address" placeholder="お店の住所やエリア（任意）" aria-label="お店の住所" style="margin-bottom: 24px;">
-            <textarea id="log-comment" placeholder="感想を自由に書いてください（例：酸味が爽やかで美味しかった！）" aria-label="感想" rows="2"></textarea>
+            <textarea id="log-comment" placeholder="感想を自由に書いてください" aria-label="感想" rows="2"></textarea>
             
             <div style="background: #f9f9f9; padding: 25px; border-radius: 16px; margin-bottom: 30px; border: 1px solid #eee;">
                 <h4 style="margin: 0 0 20px; font-size: 1.1rem; color: var(--primary);">味わいのバランス</h4>
@@ -298,9 +355,6 @@
     </div>
 
     <script>
-        // ==========================================
-        // 1. Data Structures & Setup
-        // ==========================================
         const ALL_FLAVORS = ["グレープフルーツ", "オレンジ", "レモン", "ベリー", "リンゴ", "ピーチ", "ジャスミン", "紅茶", "バニラ", "ハチミツ", "カラメル", "ダークチョコ", "ミルクチョコ", "アーモンド", "シナモン", "スモーキー"];
         const ROAST_LABELS = { 1: "浅煎り", 2: "中浅煎り", 3: "中煎り", 4: "中深煎り", 5: "深煎り" };
 
@@ -329,16 +383,14 @@
 
         let visitLogs = []; 
         let communityLogs = [
-            { user: "Takuya", shop: "GLITCH COFFEE", address: "東京都千代田区神田錦町", date: "2026-03-27", roast: 1, acidity: 5, bitterness: 1, body: 2, tags: ["ベリー", "紅茶", "ジャスミン"], comment: "フルーティーさの極み。紅茶みたいに飲める。" },
-            { user: "Kenji", shop: "堀口珈琲", address: "東京都世田谷区", date: "2026-03-24", roast: 5, acidity: 1, bitterness: 5, body: 5, tags: ["ダークチョコ", "アーモンド"], comment: "深煎り好きにはたまらない重厚感。" }
+            { user: "Takuya", shop: "GLITCH COFFEE", address: "東京都千代田区", date: "2026-03-27", roast: 1, acidity: 5, bitterness: 1, body: 2, tags: ["ベリー", "紅茶", "ジャスミン"], comment: "フルーティーさの極み。紅茶みたいに飲める。" },
+            { user: "Kenji", shop: "堀口珈琲", address: "東京都世田谷区", date: "2026-03-24", roast: 5, acidity: 1, bitterness: 5, body: 5, tags: ["ダークチョコ", "アーモンド"], comment: "深煎り好きにはたまらない重厚感。" },
+            { user: "Yuki", shop: "Fuglen Tokyo", address: "東京都渋谷区富ヶ谷", date: "2026-03-20", roast: 2, acidity: 4, bitterness: 2, body: 3, tags: ["リンゴ", "レモン"], comment: "明るい酸味が素晴らしい。" }
         ];
 
         let selectedTagsForNewLog = [];
         let editingLogId = null;
 
-        // ==========================================
-        // 2. Navigation, Tabs & Menus
-        // ==========================================
         function loadSection(id) {
             document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
             document.getElementById(id).classList.remove('hidden');
@@ -421,9 +473,6 @@
             showToast(`マップに「${shopName}」を表示しました`);
         }
 
-        // ==========================================
-        // 3. Data Visualization (Canvas Radar Chart)
-        // ==========================================
         function drawRadarChart(canvasId, valuesArray) {
             const canvas = document.getElementById(canvasId);
             if (!canvas) return;
@@ -431,7 +480,7 @@
             const w = canvas.width; const h = canvas.height;
             const cx = w / 2; const cy = h / 2;
             
-            const radius = Math.min(cx, cy) - 30; 
+            const radius = Math.min(cx, cy) - 25; 
             
             ctx.clearRect(0, 0, w, h);
             if (valuesArray.length === 0) return; 
@@ -470,7 +519,7 @@
             ctx.strokeStyle = '#8C6239'; ctx.lineWidth = 2; ctx.stroke();
 
             const labels = ["酸味", "コク", "苦味", "焙煎度"];
-            ctx.fillStyle = '#666'; ctx.font = 'bold 12px "Helvetica Neue", sans-serif';
+            ctx.fillStyle = '#666'; ctx.font = 'bold 11px "Helvetica Neue", sans-serif';
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             for (let j = 0; j < 4; j++) {
                 const angle = (Math.PI / 2) * j - Math.PI / 2;
@@ -481,9 +530,6 @@
             }
         }
 
-        // ==========================================
-        // 4. Dashboard & ハイブリッド OMO 
-        // ==========================================
         function updateDashboard() {
             renderMyLogs();
             renderCommunityLogs();
@@ -541,6 +587,9 @@
             }
         }
 
+        /* ----------------------------------------------------
+           ✅ 完全リファクタリング済みの HTML 生成ロジック
+           ---------------------------------------------------- */
         function renderMyLogs() {
             const list = document.getElementById('visit-history-list');
             const emptyState = document.getElementById('empty-state-log');
@@ -554,23 +603,25 @@
             list.innerHTML = visitLogs.map((l) => {
                 const favClass = l.isFavorite ? 'active' : '';
                 return `
-                <li>
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
-                        <div style="display: flex; align-items: center; gap: 12px;">
+                <li class="log-card">
+                    <div class="log-header">
+                        <div class="log-user-info">
                             <button class="icon-btn fav-btn ${favClass}" aria-label="お気に入り切り替え" onclick="toggleFavorite(${l.id})">♥</button>
-                            <strong style="font-size: clamp(1.1rem, 3vw, 1.3rem); color: var(--primary);">${l.shop}</strong>
+                            <div class="log-meta">
+                                <strong class="log-title">${l.shop}</strong>
+                                <span class="log-subtitle">${l.date}</span>
+                            </div>
                         </div>
-                        <span style="color: var(--text-muted); font-size: 0.9rem;">${l.date}</span>
                     </div>
-                    <div style="padding-left: clamp(15px, 4vw, 45px);">
-                        ${l.address ? `<div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px;">📍 ${l.address}</div>` : ''}
-                        <div style="font-size: 0.95rem; color: var(--text-muted); margin-bottom: 10px; line-height:1.5;">焙煎: ${ROAST_LABELS[l.roast]} | 酸味: ${l.acidity} / 苦味: ${l.bitterness} / コク: ${l.body}</div>
-                        <div style="margin-bottom: 15px;">${l.tags.map(t => `<span class="mini-tag">${t}</span>`).join('')}</div>
-                        ${l.comment ? `<div style="font-size: 0.95rem; margin-bottom: 15px; padding: 12px 15px; background: #f9f9f9; border-radius: 8px; border-left: 3px solid var(--accent); line-height: 1.5;">"${l.comment}"</div>` : ''}
-                        <div class="log-actions-group">
-                            <button class="icon-btn" style="border: 1px solid #ddd;" onclick="editLog(${l.id})">✎ 編集</button>
-                            <button class="icon-btn" style="border: 1px solid #ddd; color: var(--danger);" onclick="deleteLog(${l.id})">🗑 削除</button>
-                            <button class="icon-btn" style="border: 1px solid var(--primary); color: var(--primary);" onclick="updateMap('${l.shop}', '${l.address || ''}')">🗺 マップで見る</button>
+                    <div class="log-body">
+                        ${l.address ? `<div class="log-address">📍 ${l.address}</div>` : ''}
+                        <div class="log-taste-bar">焙煎: <strong>${ROAST_LABELS[l.roast]}</strong> | 酸味: ${l.acidity} / 苦味: ${l.bitterness} / コク: ${l.body}</div>
+                        <div class="log-tags">${l.tags.map(t => `<span class="mini-tag">${t}</span>`).join('')}</div>
+                        ${l.comment ? `<div class="log-comment">"${l.comment}"</div>` : ''}
+                        <div class="log-actions">
+                            <button class="action-btn" onclick="editLog(${l.id})">✎ 編集</button>
+                            <button class="action-btn danger" onclick="deleteLog(${l.id})">🗑 削除</button>
+                            <button class="action-btn map" onclick="updateMap('${l.shop}', '${l.address || ''}')">🗺 マップで見る</button>
                         </div>
                     </div>
                 </li>`;
@@ -579,22 +630,23 @@
 
         function renderCommunityLogs() {
             document.getElementById('community-log-list').innerHTML = communityLogs.map(l => `
-                <li class="review-card">
-                    <div class="review-header">
-                        <div class="avatar" aria-hidden="true">${l.user.charAt(0)}</div>
-                        <div>
-                            <strong style="color: var(--primary); display: block; font-size: 1.15rem;">${l.shop}</strong>
-                            <span style="font-size: 0.85rem; color: var(--text-muted);">by ${l.user} · ${l.date}</span>
+                <li class="log-card">
+                    <div class="log-header">
+                        <div class="log-user-info">
+                            <div class="avatar" aria-hidden="true">${l.user.charAt(0)}</div>
+                            <div class="log-meta">
+                                <strong class="log-title">${l.shop}</strong>
+                                <span class="log-subtitle">by ${l.user} · ${l.date}</span>
+                            </div>
                         </div>
-                        <button class="icon-btn" style="border: 1px solid var(--primary); color: var(--primary); margin-left: auto;" onclick="updateMap('${l.shop}', '${l.address || ''}')">📍 マップ</button>
+                        <button class="action-btn map" style="margin: 0;" onclick="updateMap('${l.shop}', '${l.address || ''}')">📍 マップで見る</button>
                     </div>
                     
-                    <div style="padding-left: 5px;">
-                        ${l.address ? `<div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px;">${l.address}</div>` : ''}
-                        <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">焙煎: ${ROAST_LABELS[l.roast]} | 酸味: ${l.acidity} / 苦味: ${l.bitterness} / コク: ${l.body}</div>
-                        <div style="margin-bottom: 12px;">${l.tags.map(t => `<span class="mini-tag">${t}</span>`).join('')}</div>
-                        
-                        <div style="font-size: 1rem; line-height: 1.6; padding: 15px; background: #fdfaf2; border-radius: 12px; border-left: 3px solid var(--accent);">"${l.comment}"</div>
+                    <div class="log-body">
+                        ${l.address ? `<div class="log-address">📍 ${l.address}</div>` : ''}
+                        <div class="log-taste-bar">焙煎: <strong>${ROAST_LABELS[l.roast]}</strong> | 酸味: ${l.acidity} / 苦味: ${l.bitterness} / コク: ${l.body}</div>
+                        <div class="log-tags">${l.tags.map(t => `<span class="mini-tag">${t}</span>`).join('')}</div>
+                        <div class="log-comment">"${l.comment}"</div>
                     </div>
                 </li>
             `).join('');
@@ -602,7 +654,7 @@
 
         function renderRecommendations(favoriteTags) {
             const list = document.getElementById('recommend-list');
-            if(favoriteTags.length === 0) { list.innerHTML = "<li style='border:none; color:var(--text-muted);'>好みのデータが蓄積されると、おすすめが表示されます。</li>"; return; }
+            if(favoriteTags.length === 0) { list.innerHTML = "<li style='padding: 20px 0; color:var(--text-muted);'>好みのデータが蓄積されると、おすすめが表示されます。</li>"; return; }
 
             const matches = communityLogs.map(log => {
                 let matchCount = 0; log.tags.forEach(t => { if(favoriteTags.includes(t)) matchCount++; });
@@ -615,17 +667,25 @@
                 return false;
             }).slice(0, 3);
 
-            if(finalRecs.length === 0) { list.innerHTML = "<li style='border:none; color:var(--text-muted);'>現在マッチするカフェの口コミがありません。</li>"; return; }
+            if(finalRecs.length === 0) { list.innerHTML = "<li style='padding: 20px 0; color:var(--text-muted);'>現在マッチするカフェの口コミがありません。</li>"; return; }
 
             list.innerHTML = finalRecs.map(l => `
-                <li style="padding: 20px 0;">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                        <strong style="color: var(--primary); font-size: 1.25rem;">${l.shop}</strong>
-                        <button class="icon-btn" style="background: var(--primary); color: #fff; border-radius: 6px;" onclick="updateMap('${l.shop}', '${l.address || ''}')">📍 マップ</button>
+                <li class="log-card highlight">
+                    <div class="log-header">
+                        <div class="log-user-info">
+                            <div class="log-meta">
+                                <strong class="log-title">${l.shop}</strong>
+                                <span class="log-subtitle" style="color: var(--danger); font-weight: bold;">♥ 「${l.user}」さんの口コミがあなたの好みにマッチ！</span>
+                            </div>
+                        </div>
+                        <button class="action-btn map" style="margin: 0; background: var(--primary); color: #fff;" onclick="updateMap('${l.shop}', '${l.address || ''}')">📍 マップで見る</button>
                     </div>
-                    ${l.address ? `<div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px;">${l.address}</div>` : ''}
-                    <span style="font-size: 0.9rem; color: var(--danger); font-weight: bold; display: block; margin-bottom: 12px;">♥ 「${l.user}」さんの口コミがあなたの好みにマッチ！</span>
-                    <div style="margin-top: 10px; margin-bottom: 10px;">${l.tags.map(t => `<span class="mini-tag">${t}</span>`).join('')}</div>
+                    
+                    <div class="log-body">
+                        ${l.address ? `<div class="log-address">📍 ${l.address}</div>` : ''}
+                        <div class="log-taste-bar" style="background: #fff; border-color:#f0e6d2;">焙煎: <strong>${ROAST_LABELS[l.roast]}</strong> | 酸味: ${l.acidity} / 苦味: ${l.bitterness} / コク: ${l.body}</div>
+                        <div class="log-tags">${l.tags.map(t => `<span class="mini-tag">${t}</span>`).join('')}</div>
+                    </div>
                 </li>
             `).join('');
         }
