@@ -1,7 +1,6 @@
-// Builds slides/english_research_intro.pptx (9 slides, 16:9, script in notes)
-// Visual style follows the Digital Agency "Dashboard Design Guidebook":
-// blue cover, white pages with bold blue titles, rounded gray / light-blue cards,
-// thin arrow connectors, and the guidebook's Blue / Solid Gray / Red palette.
+// Builds slides/english_research_intro.pptx: 8 slides, 16:9 (13.33 x 7.5 in), ~4 min talk, script in notes.
+// Rules applied: complete-sentence heads with evidence-matched strength, body text >= 20 pt,
+// annotations >= 18 pt, Digital Agency guidebook palette (blue family + gray, red only for caution).
 const pptxgen = require("pptxgenjs");
 const { applyTheme } = require("/mnt/skills/public/pptx/scripts/apply_theme.js");
 
@@ -11,221 +10,177 @@ const THEME = {
   bodyFontFace: "Calibri",
   colors: {
     dk1: "1A1A1A", lt1: "FFFFFF", dk2: "0031D8", lt2: "F8F8FB",
-    accent1: "0017C1", // Blue 900: emphasis in charts
-    accent2: "D2A400", // Yellow 600
-    accent3: "626264", // label gray
-    accent4: "CE0000", // red: caution / over-claim
-    accent5: "7096F8", // Blue 400: highlight border
-    accent6: "E8F1FE", // Blue 50: highlight fill
+    accent1: "0017C1", accent2: "666666", accent3: "626264",
+    accent4: "CE0000", accent5: "7096F8", accent6: "E8F1FE",
     hlink: "0017C1", folHlink: "626264",
   },
 };
 
 const pres = new pptxgen();
-pres.layout = "LAYOUT_16x9"; // 10 x 5.625 in
+pres.layout = "LAYOUT_WIDE"; // 13.33 x 7.5 in
 pres.theme = { headFontFace: THEME.headFontFace, bodyFontFace: THEME.bodyFontFace };
 pres.title = "Understanding Why Users Hesitate";
 pres.author = "Reina Ikeda";
 const C = pres.SchemeColor;
 const GRAY_LINE = "CCCCCC";
+const BODY = 20, NOTE = 18;
 
 pres.defineSlideMaster({ title: "COVER", background: { color: C.text2 }, objects: [] });
 pres.defineSlideMaster({
   title: "CONTENT",
   background: { color: C.background1 },
   objects: [
-    { text: { text: "Reina Ikeda", options: { x: 7.6, y: 5.25, w: 1.4, h: 0.25, fontSize: 9, color: C.text2, align: "right", margin: 0 } } },
+    { text: { text: "Reina Ikeda", options: { x: 9.9, y: 6.98, w: 2.2, h: 0.32, fontSize: NOTE, color: C.text2, align: "right", margin: 0 } } },
   ],
-  slideNumber: { x: 9.1, y: 5.25, w: 0.4, h: 0.25, fontSize: 9, color: C.text1, align: "right" },
+  slideNumber: { x: 12.2, y: 6.98, w: 0.45, h: 0.32, fontSize: NOTE, color: C.text1, align: "right" },
   placeholders: [
-    { placeholder: { options: { name: "title", type: "title", x: 0.5, y: 0.5, w: 9, h: 0.65, fontSize: 26, bold: true, color: C.text2, valign: "middle", margin: 0 }, text: "" } },
+    { placeholder: { options: { name: "title", type: "title", x: 0.7, y: 0.65, w: 11.9, h: 0.8, fontSize: 28, bold: true, color: C.text2, valign: "middle", margin: 0 }, text: "" } },
   ],
 });
+["Overview", "Undergraduate", "Master's"].forEach((t) => pres.addSection({ title: t }));
 
-["Overview", "Undergraduate", "Bridge", "Master's"].forEach((t) => pres.addSection({ title: t }));
-
-function content(label, title, section, notes) {
+function content(label, head, section, notes) {
   const s = pres.addSlide({ masterName: "CONTENT", sectionTitle: section });
-  s.addText(label, { isTextBox: true, x: 0.5, y: 0.24, w: 6, h: 0.26, fontSize: 12, bold: true, color: C.text2, margin: 0, objectName: "Section label" });
-  s.addText(title, { placeholder: "title", x: 0.5, y: 0.5, w: 9, h: 0.65, fontSize: 26, bold: true, color: C.text2, valign: "middle", margin: 0 });
+  s.addText(label, { isTextBox: true, x: 0.7, y: 0.28, w: 8, h: 0.36, fontSize: BODY, bold: true, color: C.text2, margin: 0, objectName: "Section label" });
+  s.addText(head, { placeholder: "title", x: 0.7, y: 0.65, w: 11.9, h: 0.8, fontSize: 28, bold: true, color: C.text2, valign: "middle", margin: 0 });
   s.addNotes(notes);
   return s;
 }
-// kind: gray | blue (highlight) | solid (blue fill) | red (caution) | white
 function card(s, name, x, y, w, h, kind = "gray") {
   const k = {
-    gray: { fill: C.background2, line: GRAY_LINE },
-    white: { fill: C.background1, line: GRAY_LINE },
-    blue: { fill: C.accent6, line: C.accent5 },
-    solid: { fill: C.text2, line: C.text2 },
+    gray: { fill: C.background2, line: GRAY_LINE }, white: { fill: C.background1, line: GRAY_LINE },
+    blue: { fill: C.accent6, line: C.accent5 }, solid: { fill: C.text2, line: C.text2 },
     red: { fill: "FDEEEE", line: "FE3939" },
   }[kind];
-  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y, w, h, rectRadius: 0.08, fill: { color: k.fill }, line: { color: k.line, width: 0.75 }, objectName: name });
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y, w, h, rectRadius: 0.1, fill: { color: k.fill }, line: { color: k.line, width: 1 }, objectName: name });
 }
 function txt(s, name, text, o) {
-  s.addText(text, Object.assign({ isTextBox: true, margin: 0.08, color: C.text1, fontSize: 14, valign: "top", objectName: name }, o));
+  s.addText(text, Object.assign({ isTextBox: true, margin: 0.1, color: C.text1, fontSize: BODY, valign: "top", objectName: name }, o));
 }
-function line(s, name, x, y, w, h = 0) {
-  s.addShape(pres.shapes.LINE, { x, y, w, h, line: { color: C.text1, width: 1.25, endArrowType: "triangle" }, objectName: name });
+function line(s, name, x, y, w, h = 0, dash = false) {
+  s.addShape(pres.shapes.LINE, { x, y, w, h, line: Object.assign({ color: C.text1, width: 1.5, endArrowType: "triangle" }, dash ? { dashType: "dash", beginArrowType: "triangle" } : {}), objectName: name });
 }
 const B = (t, o = {}) => ({ text: t, options: Object.assign({ bold: true, breakLine: true }, o) });
 const P = (t, o = {}) => ({ text: t, options: o });
+const MUTED = C.accent3;
 
 // ---------- 1 Cover ----------
 {
   const s = pres.addSlide({ masterName: "COVER", sectionTitle: "Overview" });
-  s.addText("Tokyo Metropolitan University", { isTextBox: true, x: 0.2, y: 0.2, w: 5, h: 0.3, fontSize: 12, bold: true, color: C.background1, margin: 0, objectName: "Affiliation" });
-  s.addText("Understanding Why Users Hesitate", { isTextBox: true, x: 1.0, y: 1.45, w: 8.2, h: 1.5, fontSize: 40, color: C.background1, margin: 0, valign: "middle", objectName: "Title" });
-  s.addText("From think-aloud prediction to LLM-based gaze interpretation", { isTextBox: true, x: 1.0, y: 3.0, w: 8, h: 0.45, fontSize: 20, color: C.background1, margin: 0, objectName: "Subtitle" });
-  s.addShape(pres.shapes.RECTANGLE, { x: 1.0, y: 4.0, w: 3.25, h: 0.5, fill: { color: C.text2 }, line: { color: C.background1, width: 1 }, objectName: "Byline box" });
-  s.addText("Reina Ikeda · Master's student, 1st year", { isTextBox: true, x: 1.0, y: 4.0, w: 3.25, h: 0.5, fontSize: 13, color: C.background1, align: "center", valign: "middle", margin: 0, objectName: "Byline" });
-  s.addNotes("Hello, I'm Reina Ikeda, a first-year master's student at Tokyo Metropolitan University. I'll introduce my research on understanding why users hesitate, from my undergraduate thesis to my master's work.");
+  s.addText("Tokyo Metropolitan University", { isTextBox: true, x: 0.3, y: 0.3, w: 7, h: 0.4, fontSize: BODY, bold: true, color: C.background1, margin: 0, objectName: "Affiliation" });
+  s.addText("Understanding Why Users Hesitate", { isTextBox: true, x: 1.3, y: 2.0, w: 11, h: 1.4, fontSize: 54, color: C.background1, margin: 0, valign: "middle", objectName: "Title" });
+  s.addText("From think-aloud prediction to LLM-based gaze interpretation", { isTextBox: true, x: 1.3, y: 3.6, w: 11, h: 0.6, fontSize: 28, color: C.background1, margin: 0, objectName: "Subtitle" });
+  s.addShape(pres.shapes.RECTANGLE, { x: 1.3, y: 5.2, w: 5.6, h: 0.65, fill: { color: C.text2 }, line: { color: C.background1, width: 1 }, objectName: "Byline box" });
+  s.addText("Reina Ikeda · Master's student, 1st year", { isTextBox: true, x: 1.3, y: 5.2, w: 5.6, h: 0.65, fontSize: BODY, color: C.background1, align: "center", valign: "middle", margin: 0, objectName: "Byline" });
+  s.addNotes("Hello, I'm Reina Ikeda, a first-year master's student at Tokyo Metropolitan University. I'll introduce my research on why users hesitate, from my thesis to my master's work.");
 }
 
 // ---------- 2 Overview ----------
 {
-  const s = content("Overview", "Think-aloud explains why, but at a cost", "Overview",
-    "Usability tests often use the think-aloud method: users speak their thoughts while operating a product. It reveals why people struggle, but talking while acting is a burden and can change natural behavior. My idea is to use eye movements and screen information, together with a large language model, to understand hesitation without that burden. My thesis predicted think-aloud; my master's research explains where and why users get stuck.");
-  card(s, "Problem card", 0.5, 1.45, 2.75, 3.3, "gray");
-  txt(s, "Problem text", [
-    B("Problem", { color: C.text2, fontSize: 18 }), B(" ", { fontSize: 6 }),
-    B("Think-aloud shows why users struggle.", { fontSize: 15 }), B(" ", { fontSize: 6 }),
-    P("But talking while acting is a burden and can change natural behavior.", { fontSize: 14, color: C.accent3 }),
-  ], { x: 0.65, y: 1.6, w: 2.45, h: 3.0 });
-  line(s, "Arrow problem-idea", 3.3, 3.1, 0.4);
-  card(s, "Idea card", 3.75, 1.45, 2.75, 3.3, "blue");
-  txt(s, "Idea text", [
-    B("Idea", { color: C.text2, fontSize: 18 }), B(" ", { fontSize: 6 }),
-    B("Gaze + UI information + LLM", { fontSize: 15 }), B(" ", { fontSize: 6 }),
-    P("Understand hesitation without asking users to speak.", { fontSize: 14, color: C.accent3 }),
-  ], { x: 3.9, y: 1.6, w: 2.45, h: 3.0 });
-  line(s, "Arrow idea-stages", 6.55, 3.1, 0.4);
-  card(s, "Stages card", 7.0, 1.45, 2.5, 3.3, "gray");
-  txt(s, "Stages label", "Two stages", { x: 7.15, y: 1.6, w: 2.2, h: 0.35, fontSize: 18, bold: true, color: C.text2 });
-  card(s, "Stage 1", 7.15, 2.15, 2.2, 1.05, "white");
-  txt(s, "Stage 1 text", [B("Undergraduate", { fontSize: 14 }), P("Predict think-aloud", { fontSize: 13, color: C.accent3 })], { x: 7.2, y: 2.15, w: 2.1, h: 1.05, valign: "middle" });
-  s.addShape(pres.shapes.LINE, { x: 8.25, y: 3.25, w: 0, h: 0.35, line: { color: C.text1, width: 1.25, endArrowType: "triangle" }, objectName: "Stage arrow" });
-  card(s, "Stage 2", 7.15, 3.65, 2.2, 1.0, "solid");
-  txt(s, "Stage 2 text", [B("Master's", { fontSize: 14 }), P("Explain where and why", { fontSize: 13 })], { x: 7.2, y: 3.65, w: 2.1, h: 1.0, valign: "middle", color: C.background1 });
+  const s = content("Background and objective", "Think-aloud explains hesitation, but it burdens users.", "Overview",
+    "Usability tests often use think-aloud: users speak their thoughts while operating a product. It reveals why people struggle, but talking while acting is a burden and can change behavior. My idea is to combine gaze, screen information and a large language model. My thesis predicted think-aloud; my master's research explains where and why users get stuck. I would especially like advice on the evaluation design and the sample size.");
+  const xs = [0.7, 4.85, 9.0], w = 3.63;
+  card(s, "Problem card", xs[0], 1.75, w, 3.4, "gray");
+  txt(s, "Problem text", [B("Problem", { color: C.text2, fontSize: 24 }), B("Think-aloud shows why users struggle.", {}), P("Speaking while acting is a burden and can change behavior.", { color: MUTED })], { x: xs[0] + 0.1, y: 1.85, w: w - 0.2, h: 3.2 });
+  line(s, "Arrow 1", xs[0] + w + 0.05, 3.45, 0.42);
+  card(s, "Idea card", xs[1], 1.75, w, 3.4, "blue");
+  txt(s, "Idea text", [B("Idea", { color: C.text2, fontSize: 24 }), B("Gaze + UI information + LLM", {}), P("Understand hesitation without asking users to speak.", { color: MUTED })], { x: xs[1] + 0.1, y: 1.85, w: w - 0.2, h: 3.2 });
+  line(s, "Arrow 2", xs[1] + w + 0.05, 3.45, 0.42);
+  card(s, "Stages card", xs[2], 1.75, w, 3.4, "gray");
+  txt(s, "Stages label", "Two stages", { x: xs[2] + 0.1, y: 1.85, w: w - 0.2, h: 0.45, fontSize: 24, bold: true, color: C.text2 });
+  card(s, "Stage 1", xs[2] + 0.2, 2.4, w - 0.4, 1.0, "white");
+  txt(s, "Stage 1 text", [B("Undergraduate"), P("Predict think-aloud", { color: MUTED })], { x: xs[2] + 0.25, y: 2.4, w: w - 0.5, h: 1.0, valign: "middle" });
+  s.addShape(pres.shapes.LINE, { x: xs[2] + w / 2, y: 3.45, w: 0, h: 0.3, line: { color: C.text1, width: 1.5, endArrowType: "triangle" }, objectName: "Stage arrow" });
+  card(s, "Stage 2", xs[2] + 0.2, 3.8, w - 0.4, 1.2, "solid");
+  txt(s, "Stage 2 text", [B("Master's"), P("Explain where and why")], { x: xs[2] + 0.25, y: 3.8, w: w - 0.5, h: 1.2, valign: "middle", color: C.background1 });
+  card(s, "Advice box", 0.7, 5.6, 11.93, 0.85, "red");
+  txt(s, "Advice text", [P("Advice wanted: ", { bold: true, color: C.accent4 }), P("evaluation design and sample size")], { x: 0.85, y: 5.6, w: 11.6, h: 0.85, valign: "middle" });
 }
 
-// ---------- 3 UG 1/3 ----------
+// ---------- 3 UG method ----------
 {
-  const s = content("Undergraduate · 1/3", "EsTA predicts think-aloud from gaze + UI", "Undergraduate",
-    "In my thesis I proposed EsTA, which predicts think-aloud from gaze and UI information. A 120-hertz eye tracker records fixations, saccades and pupil size, and we add element coordinates and HTML code. GPT-4 receives both and writes the think-aloud as natural text, including doubt. As a baseline, InTA uses UI information only. Twenty university students performed four conditions: good or bad UI, on shopping and video sites. The bad UIs deliberately violated Nielsen's heuristics.");
-  card(s, "Gaze card", 0.5, 1.4, 2.9, 1.2, "gray");
-  txt(s, "Gaze text", [B("Gaze (Tobii, 120 Hz)"), P("fixations · saccades · pupil size", { fontSize: 13, color: C.accent3 })], { x: 0.6, y: 1.4, w: 2.7, h: 1.2, valign: "middle" });
-  card(s, "UI card", 0.5, 2.8, 2.9, 1.2, "gray");
-  txt(s, "UI text", [B("UI information"), P("element coordinates · HTML", { fontSize: 13, color: C.accent3 })], { x: 0.6, y: 2.8, w: 2.7, h: 1.2, valign: "middle" });
-  line(s, "Gaze to LLM", 3.45, 2.0, 0.6, 0.45);
-  line(s, "UI to LLM", 3.45, 3.4, 0.6, -0.45);
-  card(s, "LLM card", 4.1, 2.0, 1.7, 1.4, "solid");
-  txt(s, "LLM text", "GPT-4", { x: 4.1, y: 2.0, w: 1.7, h: 1.4, fontSize: 22, bold: true, color: C.background1, align: "center", valign: "middle" });
-  line(s, "LLM to output", 5.85, 2.7, 0.45);
-  card(s, "Output card", 6.35, 1.9, 3.15, 1.6, "blue");
-  txt(s, "Output text", [B("Predicted think-aloud", { color: C.text2 }), P("natural text, including doubt", { fontSize: 13, color: C.accent3 })], { x: 6.45, y: 1.9, w: 2.95, h: 1.6, valign: "middle" });
-  card(s, "Baseline card", 0.5, 4.2, 4.4, 0.85, "white");
-  txt(s, "Baseline text", [P("Baseline InTA: ", { bold: true, color: C.accent4 }), P("UI information only, no gaze")], { x: 0.6, y: 4.2, w: 4.2, h: 0.85, fontSize: 14, valign: "middle" });
-  card(s, "Study card", 5.1, 4.2, 4.4, 0.85, "white");
-  txt(s, "Study text", [P("Study: ", { bold: true, color: C.text2 }), P("20 students × 4 conditions (Good/Bad UI × shopping/video)")], { x: 5.2, y: 4.2, w: 4.2, h: 0.85, fontSize: 13, valign: "middle" });
+  const s = content("Undergraduate thesis · method", "EsTA asks an LLM to write think-aloud from gaze and UI information.", "Undergraduate",
+    "In my thesis, EsTA gives GPT-4 two inputs: gaze from a 120-hertz eye tracker, and UI information such as element coordinates and HTML. GPT-4 writes the think-aloud. The baseline, InTA, uses UI information only. Twenty students used good and bad UIs on shopping and video sites.");
+  card(s, "Gaze card", 0.7, 1.75, 4.2, 1.5, "gray");
+  txt(s, "Gaze text", [B("Gaze (Tobii, 120 Hz)"), P("fixations, saccades, pupil size", { color: MUTED })], { x: 0.8, y: 1.75, w: 4.0, h: 1.5, valign: "middle" });
+  card(s, "UI card", 0.7, 3.5, 4.2, 1.5, "gray");
+  txt(s, "UI text", [B("UI information"), P("element coordinates, HTML", { color: MUTED })], { x: 0.8, y: 3.5, w: 4.0, h: 1.5, valign: "middle" });
+  line(s, "Gaze to LLM", 4.95, 2.5, 0.65, 0.65);
+  line(s, "UI to LLM", 4.95, 4.25, 0.65, -0.65);
+  card(s, "LLM card", 5.65, 2.55, 2.0, 1.7, "solid");
+  txt(s, "LLM text", "GPT-4", { x: 5.65, y: 2.55, w: 2.0, h: 1.7, fontSize: 28, bold: true, color: C.background1, align: "center", valign: "middle" });
+  line(s, "LLM to output", 7.7, 3.4, 0.65);
+  card(s, "Output card", 8.4, 2.4, 4.23, 2.0, "blue");
+  txt(s, "Output text", [B("Predicted think-aloud", { color: C.text2 }), P("natural text, including doubt", { color: MUTED })], { x: 8.5, y: 2.4, w: 4.0, h: 2.0, valign: "middle" });
+  card(s, "Baseline card", 0.7, 5.3, 5.9, 1.2, "white");
+  txt(s, "Baseline text", [P("Baseline InTA: ", { bold: true, color: C.accent4 }), P("UI information only")], { x: 0.85, y: 5.3, w: 5.6, h: 1.2, valign: "middle" });
+  card(s, "Study card", 6.75, 5.3, 5.88, 1.2, "white");
+  txt(s, "Study text", [P("20 students: ", { bold: true, color: C.text2 }), P("Good/Bad UI × shopping/video")], { x: 6.9, y: 5.3, w: 5.6, h: 1.2, valign: "middle" });
 }
 
-// ---------- 4 UG 2/3 ----------
+// ---------- 4 UG result ----------
 {
-  const s = content("Undergraduate · 2/3", "Close to real speech, but EsTA says more", "Undergraduate",
-    "We measured similarity to what participants actually said, using BERTScore. Both methods exceeded 0.617, a machine-translation benchmark, in every condition. EsTA was slightly lower in three of four conditions. Reading the outputs showed why: EsTA wrote thoughts users never voiced, which the metric counts as saying too much.");
-  const labels = ["Good A", "Bad A", "Good B", "Bad B"];
-  s.addChart(pres.charts.BAR, [
-    { name: "InTA (UI only)", labels, values: [0.680, 0.683, 0.691, 0.670] },
-    { name: "EsTA (gaze + UI)", labels, values: [0.673, 0.677, 0.688, 0.682] },
-  ], {
-    x: 0.4, y: 1.3, w: 5.9, h: 3.85, barDir: "col", barGrouping: "clustered", barGapWidthPct: 60,
-    chartColors: ["999999", "0017C1"],
-    showTitle: true, title: "BERTScore against what participants actually said", titleFontSize: 12, titleColor: "1A1A1A", titleFontFace: "+mn-lt",
-    showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 10, dataLabelFormatCode: "0.000", dataLabelFontFace: "+mn-lt", dataLabelColor: "1A1A1A",
-    valAxisMinVal: 0, valAxisMaxVal: 1, valAxisMajorUnit: 0.2, valAxisLabelFormatCode: "0.0",
-    valAxisLabelColor: "626264", catAxisLabelColor: "1A1A1A", valAxisLabelFontFace: "+mn-lt", catAxisLabelFontFace: "+mn-lt", valAxisLabelFontSize: 10, catAxisLabelFontSize: 11,
-    showValAxisTitle: true, valAxisTitle: "BERTScore", valAxisTitleFontSize: 10, valAxisTitleColor: "626264", valAxisTitleFontFace: "+mn-lt",
-    showCatAxisTitle: true, catAxisTitle: "Condition (A = e-commerce, B = video streaming)", catAxisTitleFontSize: 10, catAxisTitleColor: "626264", catAxisTitleFontFace: "+mn-lt",
-    valGridLine: { color: "E5E5E5", size: 0.5 }, catGridLine: { style: "none" },
-    showLegend: true, legendPos: "t", legendFontSize: 11, legendFontFace: "+mn-lt", legendColor: "1A1A1A",
-  });
-  card(s, "Callout 1", 6.6, 1.4, 2.9, 1.05, "gray");
-  txt(s, "Callout 1 text", [B("All above 0.617", { fontSize: 18, color: C.text2 }), P("WMT24 benchmark, every condition", { fontSize: 12, color: C.accent3 })], { x: 6.7, y: 1.4, w: 2.7, h: 1.05, valign: "middle" });
-  card(s, "Callout 2", 6.6, 2.65, 2.9, 1.05, "gray");
-  txt(s, "Callout 2 text", [B("EsTA lower in 3 of 4", { fontSize: 18, color: C.text2 }), P("Good A, Bad A, Good B", { fontSize: 12, color: C.accent3 })], { x: 6.7, y: 2.65, w: 2.7, h: 1.05, valign: "middle" });
-  card(s, "Callout 3", 6.6, 3.9, 2.9, 1.2, "blue");
-  txt(s, "Callout 3 text", [B("Why? “Saying too much”", { fontSize: 16, color: C.text2 }), P("EsTA wrote thoughts users never voiced.", { fontSize: 12 })], { x: 6.7, y: 3.9, w: 2.7, h: 1.2, valign: "middle" });
+  const s = content("Undergraduate thesis · result", "Adding gaze changed BERTScore by no more than 0.012 in any condition.", "Undergraduate",
+    "We compared the output with what participants actually said, using BERTScore. Every score exceeded 0.617, a machine-translation benchmark. Adding gaze changed the score by at most 0.012, and EsTA was slightly lower in three of four conditions. Reading the outputs, EsTA sometimes wrote thoughts that users never voiced.");
+  const hdr = (t, a = "center") => ({ text: t, options: { bold: true, color: C.background1, fill: { color: C.text2 }, align: a, valign: "middle", fontSize: BODY } });
+  const cell = (t, o = {}) => ({ text: t, options: Object.assign({ align: "center", valign: "middle", fontSize: BODY, color: C.text1, fill: { color: C.background1 } }, o) });
+  const rows = [
+    [hdr("BERTScore", "left"), hdr("InTA"), hdr("EsTA"), hdr("EsTA − InTA")],
+    ["Good A", "0.680", "0.673", "−0.007"], ["Bad A", "0.683", "0.677", "−0.006"],
+    ["Good B", "0.691", "0.688", "−0.003"], ["Bad B", "0.670", "0.682", "+0.012"],
+  ].map((r, i) => i === 0 ? r : r.map((t, j) => cell(t, j === 0 ? { align: "left", bold: true } : j === 3 ? { bold: true, color: t.startsWith("+") ? C.accent1 : C.accent4 } : {})));
+  s.addTable(rows, { x: 0.7, y: 1.75, w: 7.4, colW: [2.0, 1.7, 1.7, 2.0], rowH: 0.75, border: { type: "solid", pt: 1, color: GRAY_LINE }, objectName: "BERTScore table" });
+  txt(s, "Table note", "A = e-commerce, B = video streaming. n = 20 students.", { x: 0.7, y: 5.6, w: 7.4, h: 0.4, fontSize: NOTE, color: MUTED, margin: 0 });
+  card(s, "Callout 1", 8.5, 1.75, 4.13, 1.7, "gray");
+  txt(s, "Callout 1 text", [B("All scores above 0.617", { color: C.text2 }), P("WMT24 benchmark", { color: MUTED })], { x: 8.6, y: 1.75, w: 3.93, h: 1.7, valign: "middle" });
+  card(s, "Callout 2", 8.5, 3.7, 4.13, 2.05, "blue");
+  txt(s, "Callout 2 text", [B("EsTA sometimes wrote thoughts users never voiced.", { color: C.text1 })], { x: 8.6, y: 3.7, w: 3.93, h: 2.05, valign: "middle" });
 }
 
-// ---------- 5 UG 3/3 ----------
+// ---------- 5 UG example ----------
 {
-  const s = content("Undergraduate · 3/3", "Gaze recovered an unspoken calculation", "Undergraduate",
-    "Here is a cart-checking scene. The participant said they would now check the cart. The UI-only output skipped the checking and said the budget comes later. EsTA described adding shipping to reach 12,900 yen and confirming it fit the budget, which matched the gaze moving through the prices. So gaze recovered a calculation that was never spoken. This was presented at the Japan Ergonomics Society last December.");
+  const s = content("Undergraduate thesis · example", "In one cart scene, EsTA wrote a budget check consistent with the gaze.", "Undergraduate",
+    "Here is one cart-checking scene. The user said they would check the cart. The UI-only output skipped ahead to the budget. EsTA described adding shipping and confirming the budget, which was consistent with the gaze moving through the prices. This is a single example. It also shows the problem: EsTA can say too much, and time order was weakly handled.");
   const quotes = [
     ["Actual utterance", "gray", "“Now I have all four items, so let me check the cart.”"],
     ["InTA (UI only)", "gray", "“…items complete, I’ll check the budget later.”"],
     ["EsTA (gaze + UI)", "blue", "“…¥12,400, plus ¥500 shipping makes ¥12,900, within the ¥14,000 budget.”"],
   ];
   quotes.forEach((q, i) => {
-    const x = 0.5 + i * 3.05;
-    card(s, `Quote card ${i + 1}`, x, 1.4, 2.9, 2.5, q[1]);
-    txt(s, `Quote label ${i + 1}`, q[0], { x: x + 0.12, y: 1.5, w: 2.66, h: 0.4, fontSize: 15, bold: true, color: q[1] === "blue" ? C.text2 : C.text1 });
-    txt(s, `Quote body ${i + 1}`, q[2], { x: x + 0.12, y: 2.0, w: 2.66, h: 1.8, fontSize: 16, italic: true });
+    const x = 0.7 + i * 4.05;
+    card(s, `Quote card ${i + 1}`, x, 1.75, 3.83, 3.6, q[1]);
+    txt(s, `Quote label ${i + 1}`, q[0], { x: x + 0.15, y: 1.9, w: 3.53, h: 0.5, bold: true, color: q[1] === "blue" ? C.text2 : C.text1 });
+    txt(s, `Quote body ${i + 1}`, q[2], { x: x + 0.15, y: 2.5, w: 3.53, h: 2.7, italic: true });
   });
-  card(s, "Takeaway card", 0.5, 4.1, 9.0, 0.6, "solid");
-  txt(s, "Takeaway text", "Gaze moving through the prices matched the unspoken budget check.", { x: 0.65, y: 4.1, w: 8.7, h: 0.6, fontSize: 15, bold: true, color: C.background1, valign: "middle" });
-  txt(s, "Venue", "Presented at the Japan Ergonomics Society Kanto Branch, Dec 2025. Excerpts translated from Japanese.", { x: 0.5, y: 4.85, w: 9, h: 0.3, fontSize: 10, color: C.accent3, margin: 0 });
+  txt(s, "Example note", "Single example, not a general result. Excerpts translated from Japanese. Presented at the Japan Ergonomics Society Kanto Branch, Dec 2025.", { x: 0.7, y: 5.6, w: 11.9, h: 0.8, fontSize: NOTE, color: MUTED, margin: 0 });
 }
 
-// ---------- 6 Bridge ----------
+// ---------- 6 MS method ----------
 {
-  const s = content("Bridge", "From “saying too much” to a measurable goal", "Bridge",
-    "The thesis left two challenges: the model sometimes says too much, and time order is weakly handled. So in my master's research I changed the goal and the evaluation. The tool now explains what users struggle with, and I check it against key points made by a human analyst. Saying too much becomes a number: the over-claim rate.");
-  txt(s, "Left header", "Challenges from the thesis", { x: 0.5, y: 1.3, w: 3.8, h: 0.3, fontSize: 13, bold: true, color: C.accent3, margin: 0 });
-  txt(s, "Right header", "Master's research", { x: 5.2, y: 1.3, w: 4.3, h: 0.3, fontSize: 13, bold: true, color: C.text2, margin: 0 });
-  card(s, "Challenge 1", 0.5, 1.7, 3.8, 1.4, "gray");
-  txt(s, "Challenge 1 text", [B("Overstatement", { fontSize: 20 }), P("The model sometimes says too much.", { fontSize: 14, color: C.accent3 })], { x: 0.65, y: 1.7, w: 3.5, h: 1.4, valign: "middle" });
-  card(s, "Challenge 2", 0.5, 3.3, 3.8, 1.4, "gray");
-  txt(s, "Challenge 2 text", [B("Time order", { fontSize: 20 }), P("Weakly handled in the thesis.", { fontSize: 14, color: C.accent3 })], { x: 0.65, y: 3.3, w: 3.5, h: 1.4, valign: "middle" });
-  line(s, "Arrow goal", 4.4, 2.4, 0.7);
-  line(s, "Arrow eval", 4.4, 4.0, 0.7);
-  card(s, "New goal", 5.2, 1.7, 4.3, 1.4, "blue");
-  txt(s, "New goal text", [B("New goal", { fontSize: 12, color: C.text2 }), B("Explain what users struggle with", { fontSize: 18 }), P("where, when and why", { fontSize: 14, color: C.accent3 })], { x: 5.35, y: 1.7, w: 4.0, h: 1.4, valign: "middle" });
-  card(s, "New evaluation", 5.2, 3.3, 4.3, 1.4, "blue");
-  txt(s, "New evaluation text", [B("New evaluation", { fontSize: 12, color: C.text2 }), B("Check against human key points", { fontSize: 18 }), P("“Saying too much” → over-claim rate", { fontSize: 14, color: C.accent4, bold: true })], { x: 5.35, y: 3.3, w: 4.0, h: 1.4, valign: "middle" });
+  const s = content("Master's research · method", "The LLM's explanation is scored against human key points it never sees.", "Master's",
+    "So in my master's research, the tool explains what users struggle with, and I measure how well. The input is gaze metrics, dwell time and visits per design technique, plus UI structure: HTML, CSS and task. The LLM writes which element, on which screen, and why it caused trouble. A human analyst's key points, covering where, when and why, are never given to the LLM. I score recall, and the over-claim rate, which makes saying too much measurable.");
+  card(s, "Input gaze", 0.7, 1.75, 3.6, 1.55, "gray");
+  txt(s, "Input gaze text", [B("Gaze metrics"), P("dwell time, visits per technique", { color: MUTED })], { x: 0.8, y: 1.75, w: 3.4, h: 1.55, valign: "middle" });
+  card(s, "Input UI", 0.7, 3.5, 3.6, 1.55, "gray");
+  txt(s, "Input UI text", [B("UI structure"), P("screen, HTML/CSS, task", { color: MUTED })], { x: 0.8, y: 3.5, w: 3.4, h: 1.55, valign: "middle" });
+  line(s, "Gaze to LLM", 4.35, 2.55, 0.45, 0.6);
+  line(s, "UI to LLM", 4.35, 4.25, 0.45, -0.6);
+  card(s, "LLM", 4.85, 2.5, 1.4, 1.7, "solid");
+  txt(s, "LLM text", "LLM", { x: 4.85, y: 2.5, w: 1.4, h: 1.7, fontSize: 28, bold: true, color: C.background1, align: "center", valign: "middle" });
+  line(s, "LLM to output", 6.3, 3.35, 0.4);
+  card(s, "Output", 6.75, 1.75, 3.0, 3.3, "blue");
+  txt(s, "Output text", [B("Per technique", { color: C.text2 }), P("element, screen, reason", { breakLine: true }), P("+ summary, suggestions")], { x: 6.85, y: 1.75, w: 2.8, h: 3.3, valign: "middle" });
+  line(s, "Compare", 9.8, 3.4, 0.4, 0, true);
+  card(s, "Human key points", 10.25, 1.75, 2.38, 3.3, "white");
+  txt(s, "Human key points text", [B("Human key points", { align: "center" }), P("where, when, why", { color: MUTED, align: "center" })], { x: 10.3, y: 1.75, w: 2.28, h: 3.3, valign: "middle" });
+  card(s, "Metrics strip", 0.7, 5.35, 11.93, 1.2, "gray");
+  txt(s, "Metrics text", [P("Scored by recall and over-claim rate. ", { bold: true, color: C.text2 }), P("Key points are never given to the LLM.", { bold: true, color: C.accent4 })], { x: 0.85, y: 5.35, w: 11.6, h: 1.2, valign: "middle" });
 }
 
-// ---------- 7 MS 1/3 ----------
+// ---------- 7 MS design ----------
 {
-  const s = content("Master's · 1/3", "A tool that explains, checked against humans", "Master's",
-    "The tool takes two inputs. From gaze: dwell time and visit counts for each design technique, compared between good and bad versions. From the UI: which screen contains which technique, the HTML and CSS, and the task context. The LLM writes, for each technique, which element, on which screen, and why it caused trouble, plus a summary and suggestions. The core value is integrating two different modalities and explaining them; judging hesitation itself is not the goal. I evaluate against human key points, covering where, when and why, using recall and over-claim rate. These key points are never given to the LLM.");
-  card(s, "Input gaze", 0.5, 1.4, 2.6, 1.2, "gray");
-  txt(s, "Input gaze text", [B("Gaze metrics", { fontSize: 14 }), P("dwell time · visits, per technique, Good vs. Bad", { fontSize: 12, color: C.accent3 })], { x: 0.58, y: 1.4, w: 2.45, h: 1.2, valign: "middle" });
-  card(s, "Input UI", 0.5, 2.8, 2.6, 1.2, "gray");
-  txt(s, "Input UI text", [B("UI structure", { fontSize: 14 }), P("screen ↔ technique · HTML/CSS · task", { fontSize: 12, color: C.accent3 })], { x: 0.58, y: 2.8, w: 2.45, h: 1.2, valign: "middle" });
-  line(s, "Gaze to LLM", 3.15, 2.0, 0.4, 0.3);
-  line(s, "UI to LLM", 3.15, 3.4, 0.4, -0.3);
-  card(s, "LLM", 3.6, 2.0, 1.2, 1.4, "solid");
-  txt(s, "LLM text", "LLM", { x: 3.6, y: 2.0, w: 1.2, h: 1.4, fontSize: 22, bold: true, color: C.background1, align: "center", valign: "middle" });
-  line(s, "LLM to output", 4.85, 2.7, 0.35);
-  card(s, "Output", 5.25, 1.4, 2.4, 2.6, "blue");
-  txt(s, "Output text", [
-    B("Output", { fontSize: 14, color: C.text2 }),
-    P("Per technique: which element, which screen, why it caused trouble", { fontSize: 12, breakLine: true }),
-    P("+ summary", { fontSize: 12, breakLine: true }), P("+ suggestions", { fontSize: 12 }),
-  ], { x: 5.33, y: 1.4, w: 2.25, h: 2.6, valign: "middle" });
-  s.addShape(pres.shapes.LINE, { x: 7.7, y: 2.7, w: 0.4, h: 0, line: { color: C.text1, width: 1.25, dashType: "dash", beginArrowType: "triangle", endArrowType: "triangle" }, objectName: "Compare arrow" });
-  card(s, "Human key points", 8.15, 1.4, 1.35, 2.6, "white");
-  txt(s, "Human key points text", [B("Human key points", { fontSize: 13 }), P("Where\nWhen\nWhy", { fontSize: 12, color: C.accent3 })], { x: 8.17, y: 1.4, w: 1.31, h: 2.6, valign: "middle", align: "center" });
-  card(s, "Metrics strip", 0.5, 4.2, 9.0, 0.85, "gray");
-  txt(s, "Metrics text", [P("Metrics: ", { bold: true, color: C.text2 }), P("recall and over-claim rate.   "), P("Key points are never given to the LLM.", { bold: true, color: C.accent4 })], { x: 0.65, y: 4.2, w: 8.7, h: 0.85, fontSize: 15, valign: "middle" });
-}
-
-// ---------- 8 MS 2/3 ----------
-{
-  const s = content("Master's · 2/3", "Five literature-grounded bad-UI techniques", "Master's",
-    "The test sites are mock shopping and job-search sites. The bad versions embed five techniques, each grounded in the literature: decoys with similar names, decorative noise, shifting button positions, inconsistent design, and a low-contrast progress indicator. Each technique has its own version, so effects can be separated, plus one version with all five. Nothing scrolls, so gaze coordinates stay reliable, and twenty areas of interest are defined on every site.");
+  const s = content("Master's research · experiment design", "Each bad-UI technique is embedded alone and combined on mock sites.", "Master's",
+    "I built mock shopping and job-search sites. Each bad technique is grounded in the literature, for example decoys with similar names, shifting button positions, and low-contrast progress indicators. Each technique has its own version, plus one with all of them, so effects can be separated. Nothing scrolls, so gaze coordinates stay reliable.");
   const T = [
     ["T1", "Similar-name decoys", "Duncan & Humphreys 1989"],
     ["T2", "Decorative noise", "Burke et al. 2005"],
@@ -233,43 +188,46 @@ const P = (t, o = {}) => ({ text: t, options: o });
     ["T4", "Inconsistent design", "Mendel 2010/2012 etc."],
     ["T5", "Low-contrast progress indicator", "Yu et al. 2022; Legge et al. 1997"],
   ];
-  const w = 1.7, gap = 0.125;
+  const w = 2.3, gap = 0.1075;
   T.forEach((t, i) => {
-    const x = 0.5 + i * (w + gap);
-    card(s, `Technique card ${t[0]}`, x, 1.35, w, 2.3, "gray");
-    s.addShape(pres.shapes.OVAL, { x: x + 0.12, y: 1.5, w: 0.5, h: 0.5, fill: { color: C.text2 }, line: { color: C.text2, width: 0 }, objectName: `Badge ${t[0]}` });
-    txt(s, `Badge text ${t[0]}`, t[0], { x: x + 0.12, y: 1.5, w: 0.5, h: 0.5, fontSize: 13, bold: true, color: C.background1, align: "center", valign: "middle", margin: 0 });
-    txt(s, `Technique name ${t[0]}`, t[1], { x: x + 0.05, y: 2.1, w: w - 0.1, h: 0.8, fontSize: 14, bold: true });
-    txt(s, `Technique ref ${t[0]}`, t[2], { x: x + 0.05, y: 2.95, w: w - 0.1, h: 0.65, fontSize: 11, color: C.accent3 });
+    const x = 0.7 + i * (w + gap);
+    card(s, `Technique card ${t[0]}`, x, 1.7, w, 3.15, "gray");
+    s.addShape(pres.shapes.OVAL, { x: x + 0.15, y: 1.85, w: 0.6, h: 0.6, fill: { color: C.text2 }, line: { color: C.text2, width: 0 }, objectName: `Badge ${t[0]}` });
+    txt(s, `Badge text ${t[0]}`, t[0], { x: x + 0.15, y: 1.85, w: 0.6, h: 0.6, fontSize: BODY, bold: true, color: C.background1, align: "center", valign: "middle", margin: 0 });
+    txt(s, `Technique name ${t[0]}`, t[1], { x: x + 0.05, y: 2.55, w: w - 0.1, h: 1.2, bold: true });
+    txt(s, `Technique ref ${t[0]}`, t[2], { x: x + 0.05, y: 3.75, w: w - 0.1, h: 1.0, fontSize: NOTE, color: MUTED });
   });
-  const facts = [["7", "versions per site: G, B-T1…T5, B-all"], ["2", "genres: shopping, job search"], ["0", "scrolling, so gaze stays reliable"], ["20", "areas of interest per site"]];
+  const facts = [["7", "versions per site: G, B-T1–T5, B-all"], ["2", "genres: shopping, job search"], ["0", "scrolling, so gaze stays reliable"], ["20", "areas of interest per site"]];
   facts.forEach((f, i) => {
-    const x = 0.5 + i * 2.28;
-    card(s, `Fact ${i + 1}`, x, 3.9, 2.13, 1.15, "blue");
-    txt(s, `Fact num ${i + 1}`, f[0], { x: x + 0.05, y: 3.9, w: 0.75, h: 1.15, fontSize: 30, bold: true, color: C.text2, valign: "middle" });
-    txt(s, `Fact label ${i + 1}`, f[1], { x: x + 0.8, y: 3.9, w: 1.3, h: 1.15, fontSize: 12, valign: "middle" });
+    const x = 0.7 + i * 3.0;
+    card(s, `Fact ${i + 1}`, x, 5.05, 2.9, 1.65, "blue");
+    txt(s, `Fact num ${i + 1}`, f[0], { x: x + 0.05, y: 5.05, w: 0.85, h: 1.65, fontSize: 36, bold: true, color: C.text2, valign: "middle" });
+    txt(s, `Fact label ${i + 1}`, f[1], { x: x + 0.9, y: 5.05, w: 1.95, h: 1.65, valign: "middle" });
   });
 }
 
-// ---------- 9 MS 3/3 ----------
+// ---------- 8 MS status ----------
 {
-  const s = content("Master's · 3/3", "Status and take-away", "Master's",
-    "Prototypes for both sites are complete, and a six-person pilot is planned. So far I only have a three-person preliminary study and a wiring check with mock LLM responses, so I cannot claim results yet; the main study will recruit forty to sixty-four participants. Whatever the outcome, showing where an LLM's interpretation breaks down is itself a useful finding. My goal is to help UX teams find where and why users hesitate, with less burden on users. Thank you.");
-  const steps = [
-    ["DONE", "Prototypes", "Both sites complete", "solid"],
-    ["PLANNED", "Pilot", "N = 6", "blue"],
-    ["PLANNED", "Main study", "N = 40–64", "blue"],
-  ];
+  const s = content("Master's research · status, limits, advice", "No results exist yet, so the evaluation design remains untested.", "Master's",
+    "Prototypes for both sites are done and a six-person pilot is planned. So far I only have a three-person preliminary study and a wiring check with mock LLM responses, so I cannot claim results. The main study will recruit forty to sixty-four participants. I would welcome advice on the evaluation design and the sample size. Thank you.");
+  const steps = [["DONE", "Prototypes", "both sites", "solid"], ["PLANNED", "Pilot", "N = 6", "blue"], ["PLANNED", "Main study", "N = 40–64", "blue"]];
   steps.forEach((p, i) => {
-    const x = 0.5 + i * 3.15;
-    card(s, `Step ${i + 1}`, x, 1.4, 2.7, 1.3, p[3]);
-    txt(s, `Step text ${i + 1}`, [B(p[0], { fontSize: 11 }), B(p[1], { fontSize: 20 }), P(p[2], { fontSize: 14 })], { x: x + 0.12, y: 1.4, w: 2.5, h: 1.3, valign: "middle", color: p[3] === "solid" ? C.background1 : C.text1 });
-    if (i < 2) line(s, `Step arrow ${i + 1}`, x + 2.75, 2.05, 0.35);
+    const x = 0.7 + i * 4.15;
+    card(s, `Step ${i + 1}`, x, 1.7, 3.63, 1.35, p[3]);
+    txt(s, `Step text ${i + 1}`, [B(p[0], { fontSize: NOTE }), P(p[1] + "  ", { bold: true, fontSize: 24 }), P(p[2])], { x: x + 0.1, y: 1.7, w: 3.43, h: 1.35, valign: "middle", color: p[3] === "solid" ? C.background1 : C.text1 });
+    if (i < 2) line(s, `Step arrow ${i + 1}`, x + 3.68, 2.35, 0.42);
   });
-  card(s, "Status box", 0.5, 2.95, 9.0, 0.85, "red");
-  txt(s, "Status text", [P("So far: ", { bold: true, color: C.accent4 }), P("N = 3 preliminary study and a wiring check with mock LLM responses. No results are claimed yet.")], { x: 0.65, y: 2.95, w: 8.7, h: 0.85, fontSize: 15, valign: "middle" });
-  card(s, "Take-away", 0.5, 4.0, 9.0, 1.05, "solid");
-  txt(s, "Take-away text", [B("Help UX teams find where and why users hesitate, with less burden on users.", { fontSize: 17 }), P("Showing where an LLM's interpretation breaks down is itself a useful finding.", { fontSize: 13 })], { x: 0.65, y: 4.0, w: 8.7, h: 1.05, valign: "middle", color: C.background1 });
+  card(s, "Status box", 0.7, 3.25, 11.93, 1.55, "red");
+  txt(s, "Status text", [
+    P("So far: ", { bold: true, color: C.accent4 }), P("N = 3 preliminary study and a wiring check with mock LLM responses. No results are claimed.", { breakLine: true }),
+    P("Limits: ", { bold: true, color: C.accent4 }), P("two mock-site genres and non-scrolling pages limit generalization."),
+  ], { x: 0.85, y: 3.25, w: 11.6, h: 1.55, valign: "middle" });
+  card(s, "Advice box", 0.7, 5.0, 11.93, 1.75, "solid");
+  txt(s, "Advice text", [
+    B("Advice wanted", { fontSize: 24 }),
+    P("1. Is recall and over-claim rate against human key points a sound evaluation?", { breakLine: true }),
+    P("2. Is N = 40–64 adequate for the planned versions per site?"),
+  ], { x: 0.85, y: 5.0, w: 11.6, h: 1.75, valign: "middle", color: C.background1 });
 }
 
 (async () => {
