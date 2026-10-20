@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Decision Log | デザイン判断の記録ツール</title>
+<style>
+  :root {
+    --bg: #F8F8FB; --surface: #FFFFFF; --ink: #1A1A1A; --muted: #5A5A5E; --line: #D6D6DC;
+    --accent: #0031D8; --accent-bg: #E8F1FE;
+    --warn-ink: #7A4B00; --warn-bg: #FFF3D6; --bad-ink: #A80000; --bad-bg: #FDEEEE;
+    --ok-ink: #0B5A2A; --ok-bg: #E4F4EA;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); line-height: 1.6;
+    font-family: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", Meiryo, system-ui, sans-serif; font-size: 16px; }
+  button, select, input, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  header { background: var(--surface); border-bottom: 1px solid var(--line); padding: 16px 24px; }
+  .top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; }
+  h1 { margin: 0; font-size: 22px; color: var(--accent); }
+  .tagline { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+  .btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 14px; cursor: pointer; min-height: 40px; }
+  .btn:hover { background: var(--bg); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+  .btn.primary:hover { background: #0027B0; }
+  .btn.danger { color: var(--bad-ink); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; background: var(--surface); padding: 8px 14px; cursor: pointer; min-height: 40px; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; font-weight: 700; }
+  select, input[type=text], textarea { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--surface); min-height: 40px; }
+  textarea { width: 100%; min-height: 84px; resize: vertical; }
+  .layout { display: grid; grid-template-columns: 240px 1fr; gap: 24px; padding: 24px; max-width: 1200px; margin: 0 auto; }
+  nav h2, .main-head h2 { font-size: 14px; color: var(--muted); margin: 0 0 8px; font-weight: 700; }
+  nav ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  nav li button { width: 100%; text-align: left; border: 1px solid transparent; background: transparent; border-radius: 8px; padding: 8px 10px; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; min-height: 40px; }
+  nav li button[aria-current="true"] { background: var(--accent-bg); border-color: var(--accent); font-weight: 700; }
+  nav form { display: flex; gap: 6px; margin-top: 12px; }
+  nav form input { flex: 1; min-width: 0; }
+  .count { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .banner { background: var(--warn-bg); color: var(--warn-ink); border: 1px solid #E6C77A; border-radius: 8px; padding: 8px 12px; margin-bottom: 16px; font-size: 14px; }
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+  .stat b { display: block; font-size: 28px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .stat span { font-size: 14px; color: var(--muted); }
+  .stat.bad b { color: var(--bad-ink); } .stat.warn b { color: var(--warn-ink); }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; align-items: center; }
+  .filters label { font-size: 14px; color: var(--muted); }
+  .cards { display: grid; gap: 12px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .card-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .card h3 { margin: 0; font-size: 17px; flex: 1 1 200px; }
+  .chip { display: inline-block; border-radius: 999px; padding: 2px 10px; font-size: 13px; background: var(--accent-bg); color: var(--accent); font-weight: 700; }
+  .chip.gray { background: #EEEEF2; color: var(--muted); }
+  .value { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; display: inline-block; margin: 8px 0; word-break: break-all; }
+  .field { margin: 8px 0; } .field dt { font-size: 13px; color: var(--muted); font-weight: 700; } .field dd { margin: 0; }
+  .missing { color: var(--bad-ink); background: var(--bad-bg); border-radius: 6px; padding: 2px 8px; display: inline-block; font-size: 14px; }
+  .alts { margin: 0; padding-left: 20px; }
+  .evidence { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; border-radius: 6px; padding: 2px 8px; }
+  .ev-3 { background: var(--ok-bg); color: var(--ok-ink); } .ev-2 { background: var(--accent-bg); color: var(--accent); }
+  .ev-1 { background: var(--warn-bg); color: var(--warn-ink); } .ev-0 { background: var(--bad-bg); color: var(--bad-ink); }
+  .card-foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .meter { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .empty { text-align: center; color: var(--muted); padding: 40px 16px; background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; }
+  .spec { display: grid; grid-template-columns: 1fr 1.2fr; gap: 8px 16px; align-items: start; }
+  .spec .value { margin: 0; }
+  dialog { border: 1px solid var(--line); border-radius: 16px; padding: 0; width: min(640px, calc(100vw - 24px)); max-height: calc(100vh - 24px); }
+  dialog::backdrop { background: rgba(0,0,0,.4); }
+  dialog form { padding: 20px; display: grid; gap: 14px; }
+  dialog h2 { margin: 0; font-size: 20px; }
+  .row { display: grid; gap: 4px; } .row > label, .row > .lbl { font-weight: 700; font-size: 14px; }
+  .hint { font-size: 13px; color: var(--muted); font-weight: 400; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .alt-row { display: grid; grid-template-columns: 1fr 1.4fr auto; gap: 6px; margin-bottom: 6px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100vw - 32px); }
+  #toast.show { opacity: 1; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @media (max-width: 760px) {
+    .layout { grid-template-columns: 1fr; padding: 16px; gap: 16px; }
+    header { padding: 12px 16px; }
+    .two, .spec { grid-template-columns: 1fr; }
+    .alt-row { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <div>
+      <h1>Decision Log</h1>
+      <p class="tagline">デザインの判断と理由を、あとから引き継げる形で残す</p>
+    </div>
+    <div class="controls">
+      <label class="sr" for="project">プロジェクト</label>
+      <select id="project"></select>
+      <div class="seg" role="group" aria-label="表示の切り替え">
+        <button type="button" id="viewDesigner" aria-pressed="true">デザイナー</button>
+        <button type="button" id="viewEngineer" aria-pressed="false">エンジニア</button>
+      </div>
+    </div>
+  </div>
+  <div class="controls">
+    <button type="button" class="btn primary" id="addBtn">＋ 判断を記録する</button>
+    <button type="button" class="btn" id="exportBtn">Markdownで書き出す</button>
+    <button type="button" class="btn danger" id="resetBtn">初期状態に戻す</button>
+  </div>
+</header>
+
+<div class="layout">
+  <nav aria-label="画面の一覧">
+    <h2>画面</h2>
+    <ul id="screens"></ul>
+    <form id="screenForm">
+      <label class="sr" for="screenName">画面名を追加</label>
+      <input type="text" id="screenName" placeholder="画面名を追加" maxlength="40">
+      <button class="btn" type="submit">追加</button>
+    </form>
+  </nav>
+
+  <main>
+    <div id="banner" class="banner" hidden></div>
+    <section aria-label="全体の状況" class="summary" id="summary"></section>
+    <div class="filters" id="filters">
+      <label for="fCat">種類</label><select id="fCat"></select>
+      <label for="fStatus">状態</label><select id="fStatus"></select>
+      <label for="fGap">表示</label>
+      <select id="fGap">
+        <option value="all">すべて</option>
+        <option value="gap">記載に不足があるもの</option>
+      </select>
+    </div>
+    <div class="main-head"><h2 id="listTitle">判断の一覧</h2></div>
+    <div class="cards" id="cards"></div>
+  </main>
+</div>
+
+<dialog id="dlg" aria-labelledby="dlgTitle">
+  <form method="dialog" id="form">
+    <h2 id="dlgTitle">判断を記録する</h2>
+    <div class="two">
+      <div class="row"><label for="fScreen">画面</label><select id="fScreen" required></select></div>
+      <div class="row"><label for="fCategory">種類</label><select id="fCategory" required></select></div>
+    </div>
+    <div class="row"><label for="fTitle">何を決めたか <span class="hint">（例: 本文の書体）</span></label><input type="text" id="fTitle" required maxlength="80"></div>
+    <div class="row"><label for="fValue">決めた内容 <span class="hint">（値・仕様。エンジニアが実装で使います）</span></label><input type="text" id="fValue" maxlength="120"></div>
+    <div class="row"><label for="fWhy">なぜそうしたか <span class="hint">（解決したい課題に結びつけて）</span></label><textarea id="fWhy"></textarea></div>
+    <div class="row">
+      <span class="lbl">検討して選ばなかった案 <span class="hint">（理由とセットで）</span></span>
+      <div id="altRows"></div>
+      <button type="button" class="btn" id="addAlt">＋ 却下案を追加</button>
+    </div>
+    <div class="two">
+      <div class="row"><label for="fEvType">根拠の種類</label><select id="fEvType"></select></div>
+      <div class="row"><label for="fStatusSel">状態</label><select id="fStatusSel"></select></div>
+    </div>
+    <div class="row"><label for="fEvNote">根拠の中身 <span class="hint">（出典・観察した事実。無ければ空欄のまま）</span></label><input type="text" id="fEvNote" maxlength="160"></div>
+    <div class="actions">
+      <button type="button" class="btn" id="cancelBtn">キャンセル</button>
+      <button type="submit" class="btn primary" id="saveBtn">保存する</button>
+    </div>
+  </form>
+</dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+  var KEY = 'decision-log-v1';
+  var CATS = ['タイポグラフィ', '色', 'レイアウト', '操作・フロー', '文言', 'その他'];
+  var STATUS = { adopted: '採用', proposed: '検討中', superseded: '置き換え済み' };
+  // 根拠の強さ: 判断の裏付けがどの程度かを4段階で示す（色だけに頼らず記号と文言を併記）
+  var EVID = [
+    { v: 3, label: '強い', desc: 'ユーザーの観察・計測データ', mark: '●●●' },
+    { v: 2, label: 'やや強い', desc: 'ガイドライン・先行研究', mark: '●●○' },
+    { v: 1, label: '弱い', desc: 'チームの合意・他社事例', mark: '●○○' },
+    { v: 0, label: '未記入・感覚', desc: '根拠が書かれていない', mark: '○○○' }
+  ];
+
+  function seed() {
+    return {
+      currentProject: 'sample', currentScreen: 'all', view: 'designer',
+      projects: [
+        { id: 'sample', name: 'サンプル: 家計簿アプリ（ダミー）', dummy: true,
+          screens: ['入力', '集計', '設定'],
+          decisions: [
+            { id: 's1', screen: '入力', category: 'タイポグラフィ', title: '金額の数字を等幅数字にする', value: 'font-variant-numeric: tabular-nums', why: '桁が縦にそろわないと、入力した金額の見間違いに気づきにくい。', alts: [{ name: '通常の比例数字', reason: '桁が揃わず、見比べに時間がかかる' }], evType: 2, evNote: 'ダミー: 数字表示に関するガイドラインを参照', status: 'adopted' },
+            { id: 's2', screen: '入力', category: '操作・フロー', title: 'カテゴリ選択を最初の入力欄にする', value: '入力順: カテゴリ → 金額 → メモ', why: '迷いやすいのはカテゴリ選びなので、先に決めると後の入力が止まりにくい。', alts: [{ name: '金額を最初にする', reason: '金額は思い出しやすいが、カテゴリで止まると中断しやすい' }, { name: 'カテゴリを後から自動提案', reason: '提案の誤りで修正の手間が増える' }], evType: 3, evNote: 'ダミー: テストで入力が止まった箇所の観察', status: 'adopted' },
+            { id: 's3', screen: '集計', category: '色', title: '支出の増加を赤だけで示さない', value: '赤 + ▲アイコン + 「増加」の文言', why: '色だけでは色覚の違いで伝わらないため、形と文言を併用する。', alts: [{ name: '赤字のみ', reason: '色覚多様性に配慮できない' }], evType: 2, evNote: 'ダミー: アクセシビリティ指針', status: 'adopted' },
+            { id: 's4', screen: '集計', category: 'レイアウト', title: '合計額を画面左上に置く', value: '左上に合計、右下に明細', why: '', alts: [], evType: 1, evNote: 'ダミー: 他社アプリの配置を参考にした', status: 'proposed' },
+            { id: 's5', screen: '設定', category: '色', title: 'ダークモードを追加する', value: '', why: '', alts: [], evType: 0, evNote: '', status: 'proposed' }
+          ] },
+        { id: 'coffee', name: 'COFFEE TETHER（理由は未記入）', dummy: false,
+          screens: ['全体', '味覚診断'],
+          decisions: [
+            { id: 'c1', screen: '全体', category: 'タイポグラフィ', title: '本文の書体', value: '"Helvetica Neue", Arial, "Yu Mincho", serif', why: '', alts: [], evType: 0, evNote: '', status: 'adopted' },
+            { id: 'c2', screen: '全体', category: '色', title: 'アクセント色にブラウン系を使う', value: '#8C6239', why: '', alts: [], evType: 0, evNote: '', status: 'adopted' },
+            { id: 'c3', screen: '味覚診断', category: '操作・フロー', title: '味覚診断の質問数を絞り、スキップできる', value: '4問、スキップ可', why: '', alts: [], evType: 0, evNote: '', status: 'adopted' }
+          ] },
+        { id: 'synapse', name: 'Synapse（理由は未記入）', dummy: false,
+          screens: ['全体', 'マップ'],
+          decisions: [
+            { id: 'y1', screen: '全体', category: 'タイポグラフィ', title: '本文の書体', value: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', why: '', alts: [], evType: 0, evNote: '', status: 'adopted' },
+            { id: 'y2', screen: '全体', category: '色', title: '基調色に紺とスレートを使う', value: '#1E3A8A / #0F172A', why: '', alts: [], evType: 0, evNote: '', status: 'adopted' },
+            { id: 'y3', screen: '全体', category: '色', title: 'ダークモードの切り替えを設ける', value: '', why: '', alts: [], evType: 0, evNote: '', status: 'adopted' }
+          ] }
+      ]
+    };
+  }
+
+  var state;
+  function load() {
+    try { var raw = localStorage.getItem(KEY); if (raw) { var s = JSON.parse(raw); if (s && s.projects) return s; } } catch (e) {}
+    return seed();
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+  state = load();
+
+  var $ = function (id) { return document.getElementById(id); };
+  function h(tag, attrs) {
+    var el = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) {
+      if (k === 'class') el.className = attrs[k];
+      else if (k === 'text') el.textContent = attrs[k];
+      else el.setAttribute(k, attrs[k]);
+    });
+    for (var i = 2; i < arguments.length; i++) { var c = arguments[i]; if (c == null) continue; el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); }
+    return el;
+  }
+  function proj() { return state.projects.filter(function (p) { return p.id === state.currentProject; })[0] || state.projects[0]; }
+  // 記載の充実度: 理由・却下案・根拠の中身・決めた内容 の4点
+  function gaps(d) {
+    var g = [];
+    if (!d.value.trim()) g.push('決めた内容');
+    if (!d.why.trim()) g.push('理由');
+    if (!d.alts.length) g.push('却下案');
+    if (d.evType === 0 || !d.evNote.trim()) g.push('根拠');
+    return g;
+  }
+  function toast(msg) { var t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(function () { t.classList.remove('show'); }, 2200); }
+
+  function fillSelect(sel, opts, cur) {
+    sel.textContent = '';
+    opts.forEach(function (o) { var op = h('option', { value: o.v, text: o.t }); if (String(o.v) === String(cur)) op.selected = true; sel.appendChild(op); });
+  }
+
+  function renderProjectSelect() {
+    fillSelect($('project'), state.projects.map(function (p) { return { v: p.id, t: p.name }; }), state.currentProject);
+  }
+
+  function renderScreens() {
+    var p = proj(), ul = $('screens'); ul.textContent = '';
+    var items = [{ name: 'all', label: 'すべての画面', n: p.decisions.length }].concat(p.screens.map(function (s) {
+      return { name: s, label: s, n: p.decisions.filter(function (d) { return d.screen === s; }).length };
+    }));
+    items.forEach(function (it) {
+      var b = h('button', { type: 'button' }, h('span', { text: it.label }), h('span', { class: 'count', text: String(it.n) }));
+      if (state.currentScreen === it.name) b.setAttribute('aria-current', 'true');
+      b.addEventListener('click', function () { state.currentScreen = it.name; save(); render(); });
+      ul.appendChild(h('li', null, b));
+    });
+  }
+
+  function renderSummary(list) {
+    var noWhy = list.filter(function (d) { return !d.why.trim(); }).length;
+    var weak = list.filter(function (d) { return d.evType <= 1; }).length;
+    var s = $('summary'); s.textContent = '';
+    [['記録した判断', list.length, ''], ['理由が未記入', noWhy, noWhy ? 'bad' : ''], ['根拠が弱い・未記入', weak, weak ? 'warn' : '']].forEach(function (x) {
+      s.appendChild(h('div', { class: 'stat ' + x[2] }, h('b', { text: String(x[1]) }), h('span', { text: x[0] })));
+    });
+  }
+
+  function evBadge(d) {
+    var e = EVID.filter(function (x) { return x.v === d.evType; })[0];
+    return h('span', { class: 'evidence ev-' + e.v, title: e.desc }, h('span', { 'aria-hidden': 'true', text: e.mark }), h('span', { text: '根拠: ' + e.label }));
+  }
+
+  function designerCard(d) {
+    var g = gaps(d), done = 4 - g.length;
+    var card = h('article', { class: 'card' });
+    card.appendChild(h('div', { class: 'card-head' }, h('h3', { text: d.title }), h('span', { class: 'chip', text: d.category }), h('span', { class: 'chip gray', text: STATUS[d.status] }), h('span', { class: 'chip gray', text: d.screen })));
+    if (d.value.trim()) card.appendChild(h('div', { class: 'value', text: d.value }));
+    var dl = h('dl', { class: 'field' });
+    dl.appendChild(h('dt', { text: 'なぜそうしたか' }));
+    dl.appendChild(h('dd', null, d.why.trim() ? d.why : h('span', { class: 'missing', text: '理由が未記入です' })));
+    dl.appendChild(h('dt', { text: '選ばなかった案' }));
+    var dd = h('dd');
+    if (d.alts.length) { var ul = h('ul', { class: 'alts' }); d.alts.forEach(function (a) { ul.appendChild(h('li', { text: a.name + (a.reason ? '（' + a.reason + '）' : '') })); }); dd.appendChild(ul); }
+    else dd.appendChild(h('span', { class: 'missing', text: '却下案が未記入です' }));
+    dl.appendChild(dd);
+    card.appendChild(dl);
+    var ev = h('div', null, evBadge(d), d.evNote.trim() ? h('span', { text: '  ' + d.evNote }) : null);
+    card.appendChild(ev);
+    var edit = h('button', { type: 'button', class: 'btn', 'aria-label': '「' + d.title + '」を編集' }, '編集');
+    edit.addEventListener('click', function () { openDialog(d); });
+    var del = h('button', { type: 'button', class: 'btn danger', 'aria-label': '「' + d.title + '」を削除' }, '削除');
+    del.addEventListener('click', function () {
+      if (!confirm('「' + d.title + '」を削除しますか？')) return;
+      var p = proj(); p.decisions = p.decisions.filter(function (x) { return x.id !== d.id; }); save(); render(); toast('削除しました');
+    });
+    card.appendChild(h('div', { class: 'card-foot' }, h('span', { class: 'meter', text: '記載の充実度 ' + done + '/4' + (g.length ? '（不足: ' + g.join('・') + '）' : '') }), h('span', null, edit, ' ', del)));
+    return card;
+  }
+
+  function engineerCard(d) {
+    var card = h('article', { class: 'card' });
+    card.appendChild(h('div', { class: 'card-head' }, h('h3', { text: d.title }), h('span', { class: 'chip', text: d.category }), h('span', { class: 'chip gray', text: d.screen })));
+    var spec = h('div', { class: 'spec' });
+    spec.appendChild(h('div', null, h('div', { class: 'field' }, h('dt', { text: '実装する値' })), d.value.trim() ? h('div', { class: 'value', text: d.value }) : h('span', { class: 'missing', text: '値が未記入です' })));
+    spec.appendChild(h('div', null, h('div', { class: 'field' }, h('dt', { text: '変更する前に知っておくこと（理由）' })), d.why.trim() ? h('div', { text: d.why }) : h('span', { class: 'missing', text: '理由が未記入。デザイナーに確認してください' })));
+    card.appendChild(spec);
+    card.appendChild(h('div', { class: 'card-foot' }, evBadge(d)));
+    return card;
+  }
+
+  function renderFilters() {
+    var cat = $('fCat').value || 'all', st = $('fStatus').value || 'all';
+    fillSelect($('fCat'), [{ v: 'all', t: 'すべて' }].concat(CATS.map(function (c) { return { v: c, t: c }; })), cat);
+    fillSelect($('fStatus'), [{ v: 'all', t: 'すべて' }].concat(Object.keys(STATUS).map(function (k) { return { v: k, t: STATUS[k] }; })), st);
+    var showGap = state.view === 'designer';
+    $('fGap').hidden = !showGap; document.querySelector('label[for=fGap]').hidden = !showGap;
+  }
+
+  function visible() {
+    var p = proj(), cat = $('fCat').value || 'all', st = $('fStatus').value || 'all', gap = $('fGap').value;
+    return p.decisions.filter(function (d) {
+      if (state.currentScreen !== 'all' && d.screen !== state.currentScreen) return false;
+      if (cat !== 'all' && d.category !== cat) return false;
+      if (st !== 'all' && d.status !== st) return false;
+      if (state.view === 'engineer' && d.status !== 'adopted') return false;
+      if (state.view === 'designer' && gap === 'gap' && !gaps(d).length) return false;
+      return true;
+    });
+  }
+
+  function renderCards() {
+    var list = visible(), box = $('cards'); box.textContent = '';
+    var screenLabel = state.currentScreen === 'all' ? 'すべての画面' : state.currentScreen;
+    $('listTitle').textContent = (state.view === 'designer' ? '判断の一覧' : '実装メモ（採用済みのみ）') + ' / ' + screenLabel;
+    if (!list.length) { box.appendChild(h('div', { class: 'empty', text: '該当する判断がありません。「＋ 判断を記録する」から追加できます。' })); return; }
+    list.forEach(function (d) { box.appendChild(state.view === 'designer' ? designerCard(d) : engineerCard(d)); });
+  }
+
+  function render() {
+    var p = proj();
+    renderProjectSelect(); renderScreens(); renderFilters();
+    var b = $('banner'); b.hidden = !p.dummy; b.textContent = p.dummy ? 'このプロジェクトの内容はすべてダミーです。実在の調査や成果ではありません。' : '';
+    renderSummary(visible());
+    renderCards();
+    $('viewDesigner').setAttribute('aria-pressed', String(state.view === 'designer'));
+    $('viewEngineer').setAttribute('aria-pressed', String(state.view === 'engineer'));
+  }
+
+  // ---- dialog ----
+  var editingId = null;
+  function altRow(a) {
+    var row = h('div', { class: 'alt-row' });
+    var n = h('input', { type: 'text', 'aria-label': '却下した案', placeholder: '案', maxlength: '60' }); n.value = a ? a.name : '';
+    var r = h('input', { type: 'text', 'aria-label': '選ばなかった理由', placeholder: '選ばなかった理由', maxlength: '100' }); r.value = a ? a.reason : '';
+    var x = h('button', { type: 'button', class: 'btn', 'aria-label': 'この却下案の行を削除' }, '×');
+    x.addEventListener('click', function () { row.remove(); });
+    row.appendChild(n); row.appendChild(r); row.appendChild(x); return row;
+  }
+  function openDialog(d) {
+    var p = proj(); editingId = d ? d.id : null;
+    $('dlgTitle').textContent = d ? '判断を編集する' : '判断を記録する';
+    fillSelect($('fScreen'), p.screens.map(function (s) { return { v: s, t: s }; }), d ? d.screen : (state.currentScreen !== 'all' ? state.currentScreen : p.screens[0]));
+    fillSelect($('fCategory'), CATS.map(function (c) { return { v: c, t: c }; }), d ? d.category : CATS[0]);
+    fillSelect($('fEvType'), EVID.map(function (e) { return { v: e.v, t: e.mark + ' ' + e.label + '（' + e.desc + '）' }; }), d ? d.evType : 0);
+    fillSelect($('fStatusSel'), Object.keys(STATUS).map(function (k) { return { v: k, t: STATUS[k] }; }), d ? d.status : 'adopted');
+    $('fTitle').value = d ? d.title : ''; $('fValue').value = d ? d.value : ''; $('fWhy').value = d ? d.why : ''; $('fEvNote').value = d ? d.evNote : '';
+    var rows = $('altRows'); rows.textContent = '';
+    (d && d.alts.length ? d.alts : [null]).forEach(function (a) { rows.appendChild(altRow(a)); });
+    $('dlg').showModal(); $('fTitle').focus();
+  }
+  $('addAlt').addEventListener('click', function () { var r = altRow(null); $('altRows').appendChild(r); r.querySelector('input').focus(); });
+  $('cancelBtn').addEventListener('click', function () { $('dlg').close(); });
+  $('form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var p = proj();
+    var alts = Array.prototype.slice.call($('altRows').children).map(function (r) {
+      var i = r.querySelectorAll('input'); return { name: i[0].value.trim(), reason: i[1].value.trim() };
+    }).filter(function (a) { return a.name; });
+    var rec = { screen: $('fScreen').value, category: $('fCategory').value, title: $('fTitle').value.trim(), value: $('fValue').value.trim(), why: $('fWhy').value.trim(), alts: alts, evType: Number($('fEvType').value), evNote: $('fEvNote').value.trim(), status: $('fStatusSel').value };
+    if (!rec.title) return;
+    if (editingId) { var cur = p.decisions.filter(function (x) { return x.id === editingId; })[0]; Object.keys(rec).forEach(function (k) { cur[k] = rec[k]; }); }
+    else { rec.id = 'd' + Date.now(); p.decisions.push(rec); }
+    save(); $('dlg').close(); render(); toast('保存しました');
+  });
+
+  // ---- events ----
+  $('addBtn').addEventListener('click', function () { openDialog(null); });
+  $('project').addEventListener('change', function (e) { state.currentProject = e.target.value; state.currentScreen = 'all'; save(); render(); });
+  ['fCat', 'fStatus', 'fGap'].forEach(function (id) { $(id).addEventListener('change', render); });
+  $('viewDesigner').addEventListener('click', function () { state.view = 'designer'; save(); render(); });
+  $('viewEngineer').addEventListener('click', function () { state.view = 'engineer'; save(); render(); });
+  $('screenForm').addEventListener('submit', function (e) {
+    e.preventDefault(); var v = $('screenName').value.trim(), p = proj();
+    if (!v || p.screens.indexOf(v) >= 0) { toast(v ? '同じ名前の画面があります' : '画面名を入力してください'); return; }
+    p.screens.push(v); $('screenName').value = ''; state.currentScreen = v; save(); render();
+  });
+  $('resetBtn').addEventListener('click', function () {
+    if (!confirm('すべての記録を初期状態に戻します。よろしいですか？')) return;
+    state = seed(); save(); render(); toast('初期状態に戻しました');
+  });
+  $('exportBtn').addEventListener('click', function () {
+    var p = proj(), out = ['# ' + p.name + ' デザイン判断ログ', ''];
+    if (p.dummy) out.push('> ダミーデータです。', '');
+    p.screens.forEach(function (s) {
+      var ds = p.decisions.filter(function (d) { return d.screen === s; });
+      if (!ds.length) return;
+      out.push('## ' + s, '');
+      ds.forEach(function (d) {
+        out.push('### ' + d.title + '（' + d.category + '／' + STATUS[d.status] + '）');
+        if (d.value) out.push('- 決めた内容: ' + d.value);
+        out.push('- 理由: ' + (d.why || '【要記入】'));
+        out.push('- 選ばなかった案: ' + (d.alts.length ? d.alts.map(function (a) { return a.name + (a.reason ? '（' + a.reason + '）' : ''); }).join(' / ') : '【要記入】'));
+        var e = EVID.filter(function (x) { return x.v === d.evType; })[0];
+        out.push('- 根拠: ' + e.label + (d.evNote ? '（' + d.evNote + '）' : ''), '');
+      });
+    });
+    var md = out.join('\n');
+    function fallback() { var t = h('textarea', { 'aria-hidden': 'true' }); t.value = md; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); toast('Markdownをコピーしました'); } catch (e) { toast('コピーできませんでした'); } t.remove(); }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(md).then(function () { toast('Markdownをコピーしました'); }, fallback); else fallback();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
