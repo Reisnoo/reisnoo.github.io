@@ -119,6 +119,15 @@ h1 { font-size: clamp(1.7rem, 5vw, 2.6rem); line-height: 1.3; }
 .fact.up .arrow { color: #2b8a3e; } .fact.down .arrow { color: #c2410c; }
 .gauge { height: 14px; border: 2px solid var(--ink); border-radius: 7px; background: var(--surface-2); overflow: hidden; }
 .gauge i { display: block; height: 100%; background: var(--accent); }
+.fact .pair { background: var(--surface-2); border-radius: 8px; padding: 6px 8px 2px; }
+.fact .pair svg { display: block; width: 100%; max-width: 380px; margin: 0 auto; height: auto; }
+.pair text { fill: var(--ink); font-family: inherit; }
+.pair .mut { fill: var(--muted); }
+.pair .axis { stroke: var(--muted); stroke-width: 1.5; }
+.pair .grid { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 3; }
+.pair .ba { fill: var(--p2); stroke: var(--ink); stroke-width: 2.5; }
+.pair .bb { fill: var(--accent); stroke: var(--ink); stroke-width: 2.5; }
+.pair .dl { fill: var(--accent); font-weight: 800; }
 .fact .snip { font-size: .95rem; overflow-wrap: anywhere; }
 .fact mark { background: color-mix(in srgb, var(--accent) 22%, transparent); color: inherit; border-radius: 3px; padding: 0 2px; font-weight: 700; }
 .fact .tags { display: flex; flex-wrap: wrap; gap: 6px; font-size: .78rem; }
@@ -454,7 +463,7 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
     var CUES = {
         problem: '\\b(?:however|challenges?|problems?|issues?|difficult\\w*|limited|lack\\w*|remains?|little is known|unclear|bottleneck|despite|motivat\\w+)\\b|課題|問題|困難|不足|不明|未解明|必要|限られ|懸念',
         method: '\\b(?:we (?:propose|present|introduce|develop|design|use|used|conduct\\w*|collected|train\\w*|build|built)|this (?:paper|study|work) (?:proposes?|presents?|introduces?)|method|approach|framework|experiments?|participants|dataset|algorithm)\\b|提案|開発|手法|方法|実験|調査|分析|実施|収集|構築|用い|対象に|分け',
-        result: '\\b(?:results?|we (?:found|show|showed|observe\\w*|demonstrate\\w*)|shows?|showed|outperform\\w*|achiev\\w*|improv\\w*|increas\\w*|decreas\\w*|reduc\\w*|significant\\w*|higher|lower|accuracy)\\b|結果|示した|示された|明らか|向上|改善|増加|減少|有意|達成|確認された',
+        result: '\\b(?:results?|we (?:found|show|showed|observe\\w*|demonstrate\\w*)|shows?|showed|outperform\\w*|achiev\\w*|improv\\w*|increas\\w*|decreas\\w*|reduc\\w*|significant\\w*|higher|lower|accuracy|reach\\w*|rose|fell|dropp\\w*)\\b|結果|示した|示された|明らか|向上|改善|増加|減少|有意|達成|確認された|低下|上昇|低減|短縮|延長',
         limit: '\\b(?:limitations?|limited to|future (?:work|research)|cannot|only|small(?: sample)?|not (?:yet )?(?:been )?(?:evaluated|tested|generali[sz]ed)|remain\\w* (?:to be|unclear|open)|caveats?|beyond the scope|restricted|further (?:research|study|work|investigation))\\b|限界|今後の課題|今後|課題が残|不十分|限定|検証が必要|さらなる|一般化|制約|留意'
     };
     CUES.background = '\\b(?:widely|increasingly|important|recent(?:ly)?|growing|common|many|significant role|essential)\\b|背景|近年|重要|広く|一般に|求められ';
@@ -619,6 +628,76 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         var n = parseFloat(v);
         return n >= 0 && n <= 100 ? n : null;
     }
+
+    /* ---- before/after (paired) values ---- */
+    var UNIT = '%|％|パーセント|percent\\b|ポイント|percentage points?|points?\\b|pp\\b|倍|×|分|時間|秒|ミリ秒|円|ドル|回|個|歩|kcal|mmHg|mg|kg|cm|mm|km|ms|Hz|dB|℃|°C|minutes?|mins?|hours?|seconds?';
+    var TOKEN = '(' + NUM + ')\\s?(' + UNIT + ')?(?![A-Za-z])';
+    var LAB_JA = '調査前|介入前|開始前|導入前|事前|実施前|訓練前|治療前|調査後|介入後|終了後|導入後|事後|実施後|訓練後|治療後|対照群|コントロール群|介入群|実験群|従来手法|従来法|提案手法|ベースライン|[^\\s、。,，はがのをにで]{1,8}群';
+    var LAB_EN = '\\b(?:baseline|before|pre-?(?:test|intervention|training|treatment)?|after|post-?(?:test|intervention|training|treatment)?|follow-?up|control(?: group)?|intervention(?: group)?|treatment(?: group)?|placebo|proposed(?: method| model)?|previous (?:methods?|work)|state[- ]of[- ]the[- ]art)\\b';
+    function labelJa(t) {
+        var l = t.toLowerCase().replace(/\s+/g, ' ');
+        var map = [[/^baseline/, '基準'], [/^(before|pre)/, '前'], [/^(after|post)/, '後'], [/^follow/, '追跡時'], [/^control/, '対照群'],
+            [/^intervention/, '介入群'], [/^treatment/, '処置群'], [/^placebo/, 'プラセボ'], [/^proposed/, '提案手法'], [/^previous/, '従来手法'], [/^state/, '最先端手法']];
+        for (var i = 0; i < map.length; i++) if (map[i][0].test(l)) return map[i][1];
+        return t;
+    }
+    function labelsIn(str) {
+        var out = [], m, re = new RegExp('(?:' + LAB_JA + ')|(?:' + LAB_EN + ')', 'gi');
+        while ((m = re.exec(str))) { if (!m[0].length) { re.lastIndex++; continue; } out.push({ t: m[0], s: m.index, e: m.index + m[0].length }); }
+        return out;
+    }
+    function lastLabel(str) { var l = labelsIn(str); return l.length ? labelJa(l[l.length - 1].t).slice(0, 10) : ''; }
+    function firstLabel(str) { var l = labelsIn(str); return l.length ? labelJa(l[0].t).slice(0, 10) : ''; }
+    function decimals(t) { var m = String(t).replace(/,/g, '').match(/\.(\d+)/); return m ? m[1].length : 0; }
+    function fmtVal(numText, unit) { return unit ? (/^[A-Za-z]/.test(unit) ? numText + ' ' + unit : numText + unit) : numText; }
+    function makePair(kind, a, b, unit) {
+        var pct = /^(?:%|％|パーセント|percent)/i.test(unit), pr = { kind: kind, a: a, b: b, unit: unit, pct: pct, diff: null, rel: null };
+        if (!/^(?:倍|×)/.test(unit)) {
+            var d = b.num - a.num, dec = Math.max(decimals(a.numText), decimals(b.numText)), sign = d > 0 ? '+' : d < 0 ? '−' : '±';
+            pr.diff = sign + Math.abs(d).toFixed(dec) + (pct ? 'ポイント' : (/^[A-Za-z]/.test(unit) ? ' ' + unit : unit));
+            if (a.num) { var r = d / a.num * 100; pr.rel = (r > 0 ? '+' : r < 0 ? '−' : '±') + Math.abs(r).toFixed(1) + '%'; }
+        }
+        pr.title = (kind === 'fromto' || /前|後|基準|追跡|baseline/.test(a.label + b.label)) ? '前後比較' : '比較';
+        return pr;
+    }
+    function pairLine(pr) { return pr.a.text + (pr.title === '前後比較' ? ' → ' : ' vs ') + pr.b.text; }
+    function findPair(text) {
+        var toks = [], m, re = new RegExp(TOKEN, 'gi');
+        while ((m = re.exec(text))) {
+            if (!m[0].length) { re.lastIndex++; continue; }
+            if (/\bp\s*[<=＜＝≤≦]\s*$/i.test(text.slice(Math.max(0, m.index - 8), m.index))) continue;
+            var n = parseFloat(m[1].replace(/,/g, '')), unit = m[2] || '';
+            if (!unit && n >= 1900 && n <= 2100) continue;
+            toks.push({ s: m.index, e: m.index + m[0].replace(/\s+$/, '').length, n: n, numText: m[1], unit: unit });
+        }
+        for (var i = 0; i + 1 < toks.length; i++) {
+            var a = toks[i], b = toks[i + 1], gap = text.slice(a.e, b.s);
+            if (gap.length > 44) continue;
+            var unit2 = a.unit || b.unit;
+            if (!unit2 || (a.unit && b.unit && norm(a.unit) !== norm(b.unit))) continue;
+            var kind = '', tail = '', tm, before = text.slice(Math.max(0, a.s - 8), a.s);
+            if ((tm = gap.match(/^\s*(?:から|→|->|\bto\b)\s*(.{0,14})$/i)) && (/から|→|->/.test(gap) || /\bfrom\s*$/i.test(before))) { kind = 'fromto'; tail = tm[1]; }
+            else if ((tm = gap.match(/^\s*(?:vs\.?|versus|対|に対し(?:て)?|と比べ(?:て)?|に比べ(?:て)?|より(?:も)?|compared (?:with|to)|against)[\s、,，]*(.{0,14})$/i))) { kind = 'vs'; tail = tm[1]; }
+            else if (/^\s*(?:[、,，;]|\band\b|\bwhile\b|\bwhereas\b)[^\d]{0,30}$/i.test(gap) && lastLabel(gap) && lastLabel(text.slice(Math.max(0, a.s - 24), a.s))) { kind = 'labels'; tail = gap; }
+            if (!kind) continue;
+            var l1 = lastLabel(text.slice(Math.max(0, a.s - 24), a.s)), l2 = lastLabel(tail) || firstLabel(text.slice(b.e, b.e + 20));
+            var d1 = !l1, d2 = !l2;
+            if (kind === 'fromto') { l1 = l1 || (/後|追跡/.test(l2) ? '前' : '変化前'); l2 = l2 || (/前|基準/.test(l1) ? '後' : '変化後'); } else { l1 = l1 || '値①'; l2 = l2 || '値②'; }
+            if (kind === 'fromto' && d1 && /^後/.test(l2)) l1 = '前';
+            var A = { label: l1, text: fmtVal(a.numText, unit2), numText: a.numText, num: a.n }, B = { label: l2, text: fmtVal(b.numText, unit2), numText: b.numText, num: b.n };
+            if (kind !== 'fromto' && /前|基準|対照|従来|プラセボ/.test(l2) && !/前|基準|対照|従来|プラセボ/.test(l1)) { var sw = A; A = B; B = sw; if (/^値/.test(B.label)) B.label = '結果'; }
+            return makePair(kind, A, B, unit2);
+        }
+        return null;
+    }
+    function pairFromTexts(tb, ta, lb, la) {
+        var pm = function (t) { var m = String(t).trim().match(/^(\d+(?:[.,]\d+)?)\s?(.*)$/); return m ? { numText: m[1], num: parseFloat(m[1].replace(/,/g, '')), unit: m[2].trim() } : null; };
+        var x = pm(tb), y = pm(ta);
+        if (!x || !y) return null;
+        var unit = x.unit || y.unit;
+        if (!unit || (x.unit && y.unit && norm(x.unit) !== norm(y.unit))) return null;
+        return makePair('labels', { label: String(lb || '変化前').slice(0, 10), text: fmtVal(x.numText, unit), numText: x.numText, num: x.num }, { label: String(la || '変化後').slice(0, 10), text: fmtVal(y.numText, unit), numText: y.numText, num: y.num }, unit);
+    }
     var FACT_SEC = { results: 3, abstract: 2.5, conclusion: 2, discussion: 1.5, front: 1, limitation: 0.5 };
     function extractFacts(a) {
         var cands = [];
@@ -629,12 +708,12 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             var hits = findValues(t), pHit = hits.filter(function (h) { return h.kind === 'p'; })[0];
             var vals = hits.filter(function (h) { return h.kind !== 'p'; });
             if (!vals.length) return;
-            var sig = significance(t, pHit), cmp = comparator(t);
+            var sig = significance(t, pHit), cmp = comparator(t), pair = findPair(t);
             var texts = vals.map(function (v) { return v.text; });
             cands.push({
                 i: i, values: vals.slice(0, 3).map(function (v) { return { kind: v.kind, text: v.text, at: v.s }; }), sentence: t, page: s.page, section: s.section,
-                dir: sig === 'nosig' ? 'none' : direction(t, vals[0].e), compare: cmp, sig: sig, p: pHit ? pHit.text : '', gauge: gaugeOf(texts, t), ai: false,
-                score: w + Math.min(vals.length, 3) * 0.7 + (pHit ? 1 : 0) + (cmp ? 1 : 0) + (sig ? 0.5 : 0)
+                dir: sig === 'nosig' ? 'none' : direction(t, vals[0].e), compare: cmp, sig: sig, p: pHit ? pHit.text : '', gauge: pair ? null : gaugeOf(texts, t), pair: pair, ai: false,
+                score: w + Math.min(vals.length, 3) * 0.7 + (pHit ? 1 : 0) + (cmp ? 1 : 0) + (sig ? 0.5 : 0) + (pair ? 1.5 : 0)
             });
         });
         cands.sort(function (x, y) { return y.score - x.score; });
@@ -682,7 +761,8 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             '高校生が理解できる4コマ×2本を作ります。概要編: background=背景, problem=課題, aim=ねらい, method=方法。結果編: setup=確かめたこと, result=結果, insight=意味, limit=限界。次のJSONのみで返してください。\n' +
             '{"panels":[{"key":"problem","caption":"40字以内のやさしい日本語","quote":"根拠となる本文の一節(原文のまま80字以内)","terms":[{"term":"専門用語","plain":"やさしい言い換え"}]}, ...8つ(上の8つのkeyを1回ずつ)]}\n' +
             'さらに"numbers"を最大6件、実験結果の数値(本文にある%・倍・単位つきの値)について返してください: ' +
-            '"numbers":[{"label":"何の数字か(25字以内)","value":"本文にある表記のまま(例: 35分)","compare":"何と比べてか(なければ空)","direction":"up|down|none","quote":"その数値を含む本文の一節(原文のまま80字以内)"}]\n' +
+            '"numbers":[{"label":"何の数字か(25字以内)","value":"本文にある表記のまま(例: 35分)","compare":"何と比べてか(なければ空)","direction":"up|down|none","quote":"その数値を含む本文の一節(原文のまま80字以内)","pair":{"beforeLabel":"例: 調査前","before":"本文の表記(例: 48%)","afterLabel":"例: 調査後","after":"本文の表記(例: 31%)"}}]\n' +
+            'pairは、本文に前後や群ごとの2つの値が両方書かれている場合だけ付ける(片方しかなければ付けない)。\n' +
             '規則: 本文にないことは書かない。数値は本文のまま。本文に根拠がないコマは、captionとquoteを空文字にする(特にlimitとinsight)。termsは最大2つ。\n\n' + aiContext(a);
         var r = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
@@ -726,8 +806,11 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
                 good.push({
                     i: 0, ai: true, values: [{ kind: 'ai', text: value, at: Math.max(0, text.indexOf(value)) }], label: String(n.label || '').slice(0, 40), sentence: text,
                     page: hit ? hit.page : null, section: hit ? hit.section : null, dir: dir, compare: String(n.compare || '').slice(0, 40),
-                    sig: significance(text, null), p: '', gauge: gaugeOf([value], text)
+                    sig: significance(text, null), p: '', gauge: null, pair: null
                 });
+                var fact = good[good.length - 1];
+                if (n.pair && n.pair.before && n.pair.after && q.indexOf(norm(String(n.pair.before))) >= 0 && q.indexOf(norm(String(n.pair.after))) >= 0) fact.pair = pairFromTexts(n.pair.before, n.pair.after, n.pair.beforeLabel, n.pair.afterLabel);
+                if (!fact.pair) fact.gauge = gaugeOf([value], text);
             });
             if (good.length) nums.facts = good;
         }
@@ -815,6 +898,37 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
 
 
 
+
+    function niceMax(v) {
+        var e = Math.pow(10, Math.floor(Math.log10(v))), n = v / e;
+        return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * e;
+    }
+    function pairScale(pr) { var mx = Math.max(pr.a.num, pr.b.num, 0); return (pr.pct && mx <= 100) ? 100 : niceMax((mx || 1) * 1.1); }
+    function pairSvg(pr) {
+        var NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg'), scale = pairScale(pr), base = 150, H = 100;
+        svg.setAttribute('viewBox', '0 0 300 190'); svg.setAttribute('role', 'img');
+        svg.setAttribute('aria-label', pr.title + 'のバー図: ' + pr.a.label + ' ' + pr.a.text + '、' + pr.b.label + ' ' + pr.b.text + (pr.diff ? '、差 ' + pr.diff : ''));
+        function add(tag, attrs, text) {
+            var e = document.createElementNS(NS, tag);
+            Object.keys(attrs).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+            if (text != null) e.textContent = text;
+            svg.appendChild(e); return e;
+        }
+        add('line', { x1: 44, y1: base - H, x2: 284, y2: base - H, class: 'grid' });
+        add('line', { x1: 44, y1: base, x2: 284, y2: base, class: 'axis' });
+        add('line', { x1: 44, y1: base - H, x2: 44, y2: base, class: 'axis' });
+        add('text', { x: 40, y: base + 4, 'text-anchor': 'end', 'font-size': 10, class: 'mut' }, '0');
+        add('text', { x: 40, y: base - H + 4, 'text-anchor': 'end', 'font-size': 10, class: 'mut' }, String(scale) + (pr.pct ? '%' : ''));
+        [[pr.a, 64, 'ba'], [pr.b, 174, 'bb']].forEach(function (b) {
+            var h = Math.max(2, b[0].num / scale * H);
+            add('rect', { x: b[1], y: base - h, width: 66, height: h, class: b[2] });
+            add('text', { x: b[1] + 33, y: base - h - 6, 'text-anchor': 'middle', 'font-size': 15, 'font-weight': 800 }, b[0].text);
+            add('text', { x: b[1] + 33, y: base + 16, 'text-anchor': 'middle', 'font-size': 12 }, b[0].label.length > 9 ? b[0].label.slice(0, 8) + '…' : b[0].label);
+        });
+        if (pr.diff) add('text', { x: 164, y: 14, 'text-anchor': 'middle', 'font-size': 13, class: 'dl' }, '差 ' + pr.diff + (pr.rel ? '(相対 ' + pr.rel + ')' : ''));
+        add('text', { x: 164, y: 186, 'text-anchor': 'middle', 'font-size': 9, class: 'mut' }, '軸は0から ・ 差は本文の数値から計算した参考値');
+        return svg;
+    }
     var SIG_TEXT = { sig: '統計的に有意(偶然とは考えにくい差)', nosig: 'はっきりした差は確認されていない' };
     function highlight(parent, text, values) {
         var vs = values.map(function (v) { return v.text; }).filter(Boolean).sort(function (x, y) { return y.length - x.length; });
@@ -839,14 +953,17 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             var card = el('article', 'fact ' + f.dir);
             var vals = el('div', 'vals');
             if (f.dir !== 'none') { var ar = el('span', 'arrow', f.dir === 'up' ? '↑' : '↓'); ar.setAttribute('aria-label', f.dir === 'up' ? '増加' : '減少'); vals.appendChild(ar); }
-            f.values.forEach(function (v) { vals.appendChild(el('b', null, v.text)); });
+            if (f.pair) vals.appendChild(el('b', null, pairLine(f.pair)));
+            else f.values.forEach(function (v) { vals.appendChild(el('b', null, v.text)); });
             card.appendChild(vals);
+            if (f.pair) { var pw = el('div', 'pair'); pw.appendChild(pairSvg(f.pair)); card.appendChild(pw); }
             if (f.gauge != null) { var g = el('div', 'gauge'); g.setAttribute('role', 'img'); g.setAttribute('aria-label', '0〜100%のうち' + f.gauge + '%'); var bar = el('i'); bar.style.width = f.gauge + '%'; g.appendChild(bar); card.appendChild(g); }
             var sn = el('p', 'snip');
             if (f.label) { sn.appendChild(el('b', null, f.label)); }
             else highlight(sn, factSnippet(f), f.values);
             card.appendChild(sn);
             var tags = el('div', 'tags');
+            if (f.pair) tags.appendChild(el('span', null, f.pair.title));
             if (f.compare) tags.appendChild(el('span', null, '比較: ' + f.compare));
             if (f.sig) tags.appendChild(el('span', f.sig, SIG_TEXT[f.sig] + (f.p ? '(' + f.p + ')' : '')));
             if (f.ai) tags.appendChild(el('span', null, 'AIが整理・本文と照合済み'));
@@ -856,8 +973,9 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             var d = el('details'); d.appendChild(el('summary', null, '原文を見る')); d.appendChild(el('blockquote', null, f.sentence)); card.appendChild(d);
             box.appendChild(card);
         });
-        var anySig = nums.facts.some(function (f) { return f.sig; });
+        var anySig = nums.facts.some(function (f) { return f.sig; }), anyPair = nums.facts.some(function (f) { return f.pair; });
         note.textContent = '本文の記述から数字を抜き出したもので、表や図の中の数値は含まれないことがあります。数字の意味や条件は、必ず原文で確認してください。' +
+            (anyPair ? ' 2つの値が並んで書かれている箇所は、バー図にしています(軸は0から。「差」は本文の数値から計算した参考値です)。差だけが書かれていて元の値がない場合は、バー図にしていません。' : '') +
             (anySig ? ' 「有意」は、偶然でもこのくらいの差が出る確率(p値)が小さい(一般に0.05未満)ときに使われる言葉です。差の大きさや重要さを示すものではありません。' : '');
         current.hasNums = hasNums(nums);
         var nb = document.querySelector('[data-exp="numbers"]'); if (nb) nb.disabled = !current.hasNums;
@@ -1025,6 +1143,24 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         }
     }
 
+
+    function drawPair(c, x, y, w, h, pr) {
+        var scale = pairScale(pr), top = y + 74, base = y + h - 66, H = base - top, ax = x + 56, bw = 120;
+        c.fillStyle = '#f3efe3'; rrect(c, x, y, w, h, 10); c.fill();
+        c.strokeStyle = '#a9a39a'; c.lineWidth = 2; c.setLineDash([6, 6]); c.beginPath(); c.moveTo(ax, top); c.lineTo(x + w - 20, top); c.stroke(); c.setLineDash([]);
+        c.beginPath(); c.moveTo(ax, top); c.lineTo(ax, base); c.lineTo(x + w - 20, base); c.stroke();
+        c.fillStyle = EX.muted; c.font = '20px ' + FONT; c.textAlign = 'right'; c.fillText('0', ax - 8, base + 6); c.fillText(String(scale) + (pr.pct ? '%' : ''), ax - 8, top + 6);
+        var span = w - 56 - 20, gap = (span - bw * 2) / 3;
+        [[pr.a, '#d0ebff'], [pr.b, '#3b5bdb']].forEach(function (b, i) {
+            var bx = ax + gap + i * (bw + gap), bh = Math.max(3, b[0].num / scale * H);
+            c.fillStyle = b[1]; c.fillRect(bx, base - bh, bw, bh); c.strokeStyle = EX.ink; c.lineWidth = 4; c.strokeRect(bx, base - bh, bw, bh);
+            c.textAlign = 'center'; c.fillStyle = EX.ink; c.font = '800 34px ' + FONT; c.fillText(b[0].text, bx + bw / 2, base - bh - 10);
+            c.font = '24px ' + FONT; c.fillText(clip(c, b[0].label, bw + gap - 8), bx + bw / 2, base + 30);
+        });
+        if (pr.diff) { c.fillStyle = '#3b5bdb'; c.font = '800 26px ' + FONT; c.fillText('差 ' + pr.diff + (pr.rel ? '(相対 ' + pr.rel + ')' : ''), x + w / 2, y + 34); }
+        c.fillStyle = EX.muted; c.font = '18px ' + FONT; c.fillText('軸は0から ・ 差は本文の数値から計算した参考値', x + w / 2, y + h - 12);
+        c.textAlign = 'left';
+    }
     async function drawNumbers(nums, title, opt) {
         var W = EX.W, M = EX.M, CW = EX.PW, meta = BOOK_META.numbers, sc = document.createElement('canvas').getContext('2d');
         sc.font = '800 36px ' + FONT;
@@ -1042,11 +1178,12 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             var lines = wrapText(sc, f.label ? f.label : factSnippet(f), CW - PAD * 2 - 14);
             if (lines.length > 4) { lines = lines.slice(0, 4); lines[3] = clip(sc, lines[3] + ' …', CW - PAD * 2 - 14); }
             var meta2 = [];
+            if (f.pair) meta2.push({ t: f.pair.title, c: EX.muted });
             if (f.compare) meta2.push({ t: '比較: ' + f.compare, c: EX.muted });
             if (f.sig) meta2.push({ t: '● ' + SIG_TEXT[f.sig], c: f.sig === 'sig' ? '#2b8a3e' : EX.muted });
             var where = [f.page ? 'p.' + f.page : '', f.section ? '章: ' + (SEC_LABEL[f.section] || f.section) : ''].filter(Boolean).join(' ・ ');
             if (where) meta2.push({ t: '出典 ' + where, c: EX.muted, small: true });
-            return { f: f, lines: lines, meta: meta2, h: PAD + 74 + (f.gauge != null ? 44 : 0) + lines.length * LH + 10 + meta2.length * 34 + 16 };
+            return { f: f, lines: lines, meta: meta2, h: PAD + 74 + (f.pair ? 320 : (f.gauge != null ? 44 : 0)) + lines.length * LH + 10 + meta2.length * 34 + 16 };
         });
         var rows = []; for (var i = 0; i < cards.length; i += 2) rows.push(Math.max(cards[i].h, cards[i + 1] ? cards[i + 1].h : 0));
         var bodyH = rows.reduce(function (s, h) { return s + h + EX.G; }, 0);
@@ -1078,9 +1215,11 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
                 c.font = '800 54px ' + FONT; var vx = tx;
                 if (f.dir !== 'none') { c.fillStyle = bandCol; c.fillText(f.dir === 'up' ? '↑' : '↓', vx, ty + 56); vx += c.measureText('↑ ').width + 6; }
                 c.fillStyle = EX.ink;
-                f.values.forEach(function (v) { if (vx - tx < CW - 220) { c.fillText(v.text, vx, ty + 56); vx += c.measureText(v.text).width + 28; } });
+                if (f.pair) c.fillText(clip(c, pairLine(f.pair), CW - PAD * 2 - 14 - (vx - tx)), vx, ty + 56);
+                else f.values.forEach(function (v) { if (vx - tx < CW - 220) { c.fillText(v.text, vx, ty + 56); vx += c.measureText(v.text).width + 28; } });
                 ty += 74;
-                if (f.gauge != null) {
+                if (f.pair) { drawPair(c, tx, ty, CW - PAD * 2 - 14, 310, f.pair); ty += 320; }
+                else if (f.gauge != null) {
                     c.fillStyle = '#efeadb'; rrect(c, tx, ty, CW - PAD * 2 - 14, 22, 11); c.fill();
                     c.fillStyle = '#3b5bdb'; rrect(c, tx, ty, Math.max(8, (CW - PAD * 2 - 14) * f.gauge / 100), 22, 11); c.fill();
                     c.strokeStyle = EX.ink; c.lineWidth = 3; rrect(c, tx, ty, CW - PAD * 2 - 14, 22, 11); c.stroke(); ty += 44;
@@ -1321,8 +1460,9 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         '本研究では、2つの学級の生徒120人を屋外活動群と対照群に分け、睡眠時間を毎日記録した。',
         '3. 結果',
         '屋外活動群の平日の睡眠時間は、調査前と比べて平均35分増加した(p < 0.01)。',
-        '寝つきの自己評価は、対照群と比べて12.5%向上した(p = 0.03)。対照群では有意な変化は見られなかった。',
-        '結果として、課題の提出率は82%で、群間に差は見られなかった。',
+        '寝つきがよいと答えた生徒の割合は、対照群の65%に対し、屋外活動群では82%に向上した(p = 0.03)。',
+        '起床時に強い眠気を感じる生徒の割合は、調査前の48%から調査後は31%へ低下した。',
+        '結果として、課題の提出率は91%で、群間に差は見られなかった。',
         '4. 考察',
         'この結果は、朝の光が体内時計を整え、夜の眠気を早めた可能性を示唆している。',
         '5. 今後の課題',
