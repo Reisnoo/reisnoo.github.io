@@ -55,6 +55,17 @@ GitHub CLI(`gh`)にログイン済みなら、リポジトリの作成・push・
 
 新しいリポジトリの `README.md` は、`README.standalone.md` から作られます。
 
+#### GitHub の組織(Organization)で公開する場合
+
+組織名と同じ `<組織名>.github.io` という名前のリポジトリは、`https://<組織名>.github.io/` で公開されます(例: 組織「4koma-paper」→ `https://4koma-paper.github.io/`)。
+
+- すでにあるリポジトリを組織に移す場合: そのリポジトリの **Settings → General → Danger Zone → Transfer ownership** で、組織に転送します。そのあと **Repository name** を `<組織名>.github.io` に変えて、Settings → Pages で `main`・`/ (root)` を選びます。履歴は、そのまま残ります。
+- 新しく作る場合(`gh` が使えるとき):
+
+  ```bash
+  ./new-repo.sh --create 4koma-paper/4koma-paper.github.io
+  ```
+
 > このリポジトリ(`reisnoo.github.io`)の `4koma-paper/` と、新しい別のリポジトリでは、公開URLが同じ名前(`.../4koma-paper/`)になることがあります。両方を公開する場合は、リポジトリ名を変えてください。
 
 ## 手元で確認する

@@ -4,9 +4,12 @@
 #   ./new-repo.sh [出力先フォルダ] [--create [リポジトリ名]]
 #
 #   出力先フォルダ   省略すると、このフォルダの隣の ../4koma-paper-repo に作ります。
-#   --create         GitHub CLI(gh)で、公開リポジトリの作成 → main へ push →
+#   --create [名前]  GitHub CLI(gh)で、公開リポジトリの作成 → main へ push →
 #                    GitHub Pages の有効化 までを行います(gh でログイン済みであること)。
-#                    リポジトリ名は省略すると 4koma-paper です。
+#                    名前は省略すると 4koma-paper(自分のアカウント)です。
+#                    組織に作るときは「組織名/リポジトリ名」と書きます。
+#                    例: --create 4koma-paper/4koma-paper.github.io
+#                    (組織名.github.io という名前にすると、https://組織名.github.io/ で公開されます)
 #
 # 何をするか:
 #   1. ./build.sh で公開用の index.html を作り直す
@@ -25,7 +28,7 @@ while [ $# -gt 0 ]; do
       CREATE=1
       if [ -n "${2:-}" ] && [ "${2#-}" = "$2" ]; then REPO_NAME="$2"; shift; fi
       ;;
-    -h|--help) sed -n '2,17p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
     *) DEST="$1" ;;
   esac
   shift
@@ -64,9 +67,10 @@ fi
 if [ "$CREATE" -eq 1 ]; then
   gh repo create "$REPO_NAME" --public --source . --remote origin --push \
     --description "論文PDFを4コマ・実験結果の数値・表・関連研究にまとめる、ブラウザだけで動くツール"
-  OWNER="$(gh api user --jq .login)"
-  gh api -X POST "repos/${OWNER}/${REPO_NAME}/pages" -f 'source[branch]=main' -f 'source[path]=/' >/dev/null \
-    && echo "GitHub Pages を有効にしました。1〜2分後に https://${OWNER}.github.io/${REPO_NAME}/ で開けます。" \
+  if [[ "$REPO_NAME" == */* ]]; then OWNER="${REPO_NAME%%/*}"; NAME="${REPO_NAME##*/}"; else OWNER="$(gh api user --jq .login)"; NAME="$REPO_NAME"; fi
+  if [ "$NAME" = "${OWNER}.github.io" ]; then URL="https://${OWNER}.github.io/"; else URL="https://${OWNER}.github.io/${NAME}/"; fi
+  gh api -X POST "repos/${OWNER}/${NAME}/pages" -f 'source[branch]=main' -f 'source[path]=/' >/dev/null \
+    && echo "GitHub Pages を有効にしました。1〜2分後に ${URL} で開けます。" \
     || echo "Pages の有効化に失敗しました。Settings → Pages で、main・/ (root) を選んでください。"
 else
   cat <<EOF
