@@ -28,15 +28,34 @@
 
    開けないときは、GitHub のリポジトリの **Settings → Pages** で、公開元(Source)が「Deploy from a branch」・ブランチが `main`・フォルダが `/ (root)` になっているか確認してください。
 
-### このフォルダだけを別のリポジトリにして公開する場合
+### このフォルダだけを、新しい別のリポジトリにして公開する場合
 
-1. 新しいリポジトリ(例: `4koma-paper`)を作ります。
-2. このフォルダの中身を、リポジトリの直下にコピーして、`main` に push します。
-   (`index.html`、`vendor/`、`.nojekyll`、`README.md`、`build.sh` を含めます。)
-3. Settings → Pages で、「Deploy from a branch」・`main`・`/ (root)` を選びます。
-4. `https://<ユーザー名>.github.io/<リポジトリ名>/` で開けます。
+`new-repo.sh` が、新しいリポジトリ用のフォルダを作って、`main` に最初のコミットまで行います。
 
-> `build.sh` は、開発用の `../paper-comic/index.html` から `index.html` を作るためのものです。フォルダ単体で公開する場合は、`index.html` と `vendor/` があれば動くので、`build.sh` は無くても構いません。
+```bash
+cd 4koma-paper
+./new-repo.sh                        # ../4koma-paper-repo にフォルダを作る(出力先は引数で変えられます)
+```
+
+できたフォルダは、GitHub に空のリポジトリを作って push すれば、公開できます(スクリプトの最後に、手順が表示されます)。
+
+```bash
+cd ../4koma-paper-repo
+git remote add origin https://github.com/<ユーザー名>/4koma-paper.git
+git push -u origin main
+# そのあと、Settings → Pages で main・/ (root) を選ぶ
+```
+
+GitHub CLI(`gh`)にログイン済みなら、リポジトリの作成・push・Pages の有効化まで、1コマンドでできます。
+
+```bash
+./new-repo.sh --create              # 公開リポジトリ「4koma-paper」を作成して公開
+./new-repo.sh --create my-name      # リポジトリ名を変える場合
+```
+
+新しいリポジトリの `README.md` は、`README.standalone.md` から作られます。
+
+> このリポジトリ(`reisnoo.github.io`)の `4koma-paper/` と、新しい別のリポジトリでは、公開URLが同じ名前(`.../4koma-paper/`)になることがあります。両方を公開する場合は、リポジトリ名を変えてください。
 
 ## 手元で確認する
 
@@ -58,6 +77,8 @@ python3 -m http.server 8000
 | `vendor/pdfjs/LICENSE` | pdf.js のライセンス(Apache License 2.0) |
 | `.nojekyll` | GitHub Pages が `vendor/` などを加工しないための印 |
 | `build.sh` | 開発用ファイルから `index.html` を作り直すスクリプト |
+| `new-repo.sh` | 新しい別のリポジトリ用のフォルダを作るスクリプト |
+| `README.standalone.md` | 新しいリポジトリの `README.md` のひな形 |
 
 ## 更新するとき
 
