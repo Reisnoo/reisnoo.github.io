@@ -103,6 +103,10 @@ h1 { font-size: clamp(1.7rem, 5vw, 2.6rem); line-height: 1.3; }
 .terms { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: .85rem; }
 .terms b { color: var(--accent); }
 
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
+.toolbar .tb-label { font-size: .85rem; font-weight: 700; margin-right: 4px; }
+.toolbar .btn { padding: 6px 16px; font-size: .9rem; }
+.toolbar .btn[disabled] { opacity: .5; cursor: progress; }
 .fine { margin-top: 10px; font-size: .8rem; color: var(--muted); }
 
 .related { margin-top: 44px; }
@@ -137,7 +141,7 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
     .steps { grid-template-columns: 1fr; }
     .drop { padding: 30px 16px; }
 }
-@media print { .top, .drop, .sample, .steps, .seg { display: none; } body { background: #fff; } }
+@media print { .top, .drop, .sample, .steps, .seg, .toolbar { display: none; } body { background: #fff; } }
 </style>
 </head>
 <body>
@@ -172,6 +176,13 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
 
     <section id="result" hidden aria-label="解析結果">
         <div class="meta" id="meta"></div>
+        <div class="toolbar" id="toolbar" role="group" aria-label="画像で保存">
+            <span class="tb-label">画像で保存(PNG)</span>
+            <button class="btn sub" type="button" data-exp="overview">概要編</button>
+            <button class="btn sub" type="button" data-exp="findings">結果編</button>
+            <button class="btn" type="button" data-exp="both">2本を1枚で</button>
+            <span class="fine" id="exp-msg" role="status" style="margin:0"></span>
+        </div>
         <section class="book" aria-labelledby="b1-h">
             <div class="book-head"><h2 id="b1-h"><span>概要編</span></h2><p>この研究は、何のために、何をしたか</p></div>
             <div class="strip" id="strip-overview"></div>
@@ -607,6 +618,9 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             m.appendChild(n);
         }
     }
+    function confLabel(p) {
+        return p.conf === 'high' ? (p.ai ? '根拠を照合済み' : '根拠: 高') : p.conf === 'mid' ? (p.ai ? '根拠を確認できません' : '根拠: 推測を含む') : '記述なし';
+    }
     function renderPanels(panels, selector) {
         var strip = $(selector); strip.textContent = '';
         panels.forEach(function (p) {
@@ -615,7 +629,7 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             h.appendChild(el('span', 'num', String(p.num)));
             h.appendChild(el('h3', null, p.name));
             h.appendChild(el('span', 'ask', p.ask));
-            var confText = p.conf === 'high' ? (p.ai ? '根拠を照合済み' : '根拠: 高') : p.conf === 'mid' ? (p.ai ? '根拠を確認できません' : '根拠: 推測を含む') : '記述なし';
+            var confText = confLabel(p);
             h.appendChild(el('span', 'conf ' + p.conf, confText));
             art.appendChild(h);
             var sc = el('div', 'scene'); sc.innerHTML = scene(p.key, p.emoji); art.appendChild(sc);
@@ -641,6 +655,171 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             strip.appendChild(art);
         });
     }
+
+
+    /* ================= image export (canvas, no external library) ================= */
+    var EX = { W: 1600, M: 48, G: 32, ink: '#1d1b26', muted: '#6b6676', line: '#d8d2c0', colors: ['#fff3bf', '#d0ebff', '#d3f9d8', '#ffe3e3'] };
+    EX.PW = (EX.W - EX.M * 2 - EX.G) / 2;
+    var FONT = '-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Arial,"Hiragino Sans","Yu Gothic UI","Noto Sans JP","IPAGothic",sans-serif';
+    var BOOK_META = { overview: { label: '概要編', sub: 'この研究は、何のために、何をしたか' }, findings: { label: '結果編', sub: '何が分かって、どこまで言えるか' } };
+    function rrect(c, x, y, w, h, r) {
+        c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
+        c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
+    }
+    function wrapText(c, text, maxW) {
+        var lines = [], line = '';
+        (text.match(/[A-Za-z0-9][A-Za-z0-9'’\-.,;:%()\/]*|\s+|[^\sA-Za-z0-9]/g) || []).forEach(function (t) {
+            var test = line + t;
+            if (c.measureText(test).width > maxW && line.trim()) { lines.push(line.trimEnd()); line = t.replace(/^\s+/, ''); } else line = test;
+        });
+        if (line.trim()) lines.push(line.trimEnd());
+        return lines;
+    }
+    function clip(c, text, maxW) {
+        if (c.measureText(text).width <= maxW) return text;
+        while (text.length > 1 && c.measureText(text + '…').width > maxW) text = text.slice(0, -1);
+        return text + '…';
+    }
+    function sceneImage(p) {
+        var style = '<style>.s{stroke:' + EX.ink + ';stroke-width:3;stroke-linecap:round;stroke-linejoin:round;fill:none}.f{fill:#fff}' +
+            '.t{fill:' + EX.ink + ';font-weight:900;font-family:' + FONT.replace(/"/g, "'") + '}text{font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}text.t{font-family:' + FONT.replace(/"/g, "'") + '}</style>';
+        var svg = scene(p.key, p.emoji).replace(/^<svg /, '<svg xmlns="http://www.w3.org/2000/svg" width="480" height="280" ').replace(/^(<svg[^>]*>)/, '$1' + style);
+        return new Promise(function (res, rej) {
+            var img = new Image();
+            img.onload = function () { res(img); };
+            img.onerror = function () { rej(new Error('イラストを描画できませんでした')); };
+            img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        });
+    }
+    async function drawBook(book, title, opt) {
+        var W = EX.W, M = EX.M, PW = EX.PW, meta = BOOK_META[book.id];
+        var scratch = document.createElement('canvas').getContext('2d');
+        var imgs = await Promise.all(book.panels.map(sceneImage));
+        var HEAD = 64, SCENE = 300, SRC = 46, CAP_LH = 44, PAD = 22;
+        // measure
+        scratch.font = '700 30px ' + FONT;
+        var info = book.panels.map(function (p) {
+            var text = p.caption || EMPTY_NOTE[p.key] || '該当する文を見つけられませんでした。';
+            var lines = wrapText(scratch, text, PW - PAD * 2);
+            scratch.font = '24px ' + FONT;
+            var terms = (p.terms || []).map(function (t) { return clip(scratch, '▸ ' + t.term + ' = ' + t.plain, PW - PAD * 2); });
+            scratch.font = '700 30px ' + FONT;
+            var h = PAD + (p.numbers.length ? 62 : 0) + lines.length * CAP_LH + (terms.length ? 10 + terms.length * 34 : 0) + 12;
+            return { lines: lines, terms: terms, h: h };
+        });
+        scratch.font = '800 36px ' + FONT;
+        var tLines = opt.showTitle ? wrapText(scratch, title, W - M * 2).slice(0, 2) : [];
+        if (opt.showTitle && wrapText(scratch, title, W - M * 2).length > 2) tLines[1] = clip(scratch, tLines[1] + ' …', W - M * 2);
+        var topH = M + 56 + (tLines.length ? 18 + tLines.length * 48 : 0) + 28;
+        var rowH = [0, 1].map(function (r) { return HEAD + SCENE + Math.max(info[r * 2].h, info[r * 2 + 1].h) + SRC; });
+        var footH = opt.showFooter ? 120 : 0;
+        var H = topH + rowH[0] + EX.G + rowH[1] + (opt.showFooter ? EX.G : M) + footH;
+        var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+        var c = cv.getContext('2d');
+        c.fillStyle = '#ffffff'; c.fillRect(0, 0, W, H);
+        c.textBaseline = 'alphabetic';
+        // header: pill + subtitle + title
+        c.font = '800 32px ' + FONT;
+        var pw = c.measureText(meta.label).width + 44;
+        c.fillStyle = EX.ink; rrect(c, M, M, pw, 56, 8); c.fill();
+        c.fillStyle = '#ffffff'; c.fillText(meta.label, M + 22, M + 40);
+        c.fillStyle = EX.muted; c.font = '26px ' + FONT; c.fillText(meta.sub, M + pw + 20, M + 38);
+        c.fillStyle = EX.ink; c.font = '800 36px ' + FONT;
+        tLines.forEach(function (l, i) { c.fillText(l, M, M + 56 + 18 + 38 + i * 48); });
+        c.fillStyle = EX.ink; c.fillRect(M, topH - 14, W - M * 2, 4);
+        // panels
+        var y = topH;
+        for (var r = 0; r < 2; r++) {
+            for (var k = 0; k < 2; k++) {
+                var idx = r * 2 + k, p = book.panels[idx], x = M + k * (PW + EX.G), h = rowH[r], col = EX.colors[idx];
+                c.save(); rrect(c, x, y, PW, h, 10); c.clip();
+                c.fillStyle = '#ffffff'; c.fillRect(x, y, PW, h);
+                c.fillStyle = col; c.fillRect(x, y, PW, HEAD + SCENE);
+                // header text
+                c.fillStyle = EX.ink; c.font = '900 38px ' + FONT; c.fillText(String(p.num), x + 20, y + 44);
+                c.font = '800 30px ' + FONT; c.fillText(p.name, x + 58, y + 43);
+                var nameW = c.measureText(p.name).width;
+                c.fillStyle = EX.muted; c.font = '22px ' + FONT; c.fillText(clip(c, p.ask, PW - 58 - nameW - 40 - 190), x + 58 + nameW + 14, y + 42);
+                var ct = confLabel(p);
+                c.font = '20px ' + FONT; var cw = c.measureText(ct).width + 24;
+                c.fillStyle = '#ffffff'; rrect(c, x + PW - cw - 16, y + 16, cw, 34, 6); c.fill();
+                c.strokeStyle = EX.ink; c.lineWidth = 2; c.stroke();
+                c.fillStyle = p.conf === 'high' ? '#2b8a3e' : p.conf === 'mid' ? '#c2410c' : EX.muted; c.fillText(ct, x + PW - cw - 4, y + 40);
+                // scene
+                c.fillStyle = EX.ink; c.fillRect(x, y + HEAD - 4, PW, 4);
+                var iw = SCENE * 240 / 140; c.drawImage(imgs[idx], x + (PW - iw) / 2, y + HEAD, iw, SCENE);
+                c.fillRect(x, y + HEAD + SCENE - 4, PW, 4);
+                // body
+                var by = y + HEAD + SCENE + PAD;
+                if (p.numbers.length) {
+                    var nx = x + PAD; c.font = '800 36px ' + FONT;
+                    p.numbers.forEach(function (n) {
+                        var w = c.measureText(n).width + 28;
+                        c.fillStyle = EX.colors[2]; rrect(c, nx, by, w, 48, 8); c.fill(); c.strokeStyle = EX.ink; c.lineWidth = 3; c.stroke();
+                        c.fillStyle = EX.ink; c.fillText(n, nx + 14, by + 36); nx += w + 10;
+                    });
+                    by += 62;
+                }
+                c.fillStyle = p.caption ? EX.ink : EX.muted; c.font = (p.caption ? '700 ' : '') + '30px ' + FONT;
+                info[idx].lines.forEach(function (l, i) { c.fillText(l, x + PAD, by + 32 + i * CAP_LH); });
+                by += info[idx].lines.length * CAP_LH;
+                if (info[idx].terms.length) {
+                    c.fillStyle = '#3b5bdb'; c.font = '24px ' + FONT;
+                    info[idx].terms.forEach(function (t, i) { c.fillText(t, x + PAD, by + 30 + i * 34); });
+                }
+                // source line
+                if (p.evidence) {
+                    var src = [p.evidence.page ? 'p.' + p.evidence.page : '', p.evidence.section ? '章: ' + (SEC_LABEL[p.evidence.section] || p.evidence.section) : ''].filter(Boolean).join(' ・ ');
+                    if (src) { c.fillStyle = EX.muted; c.font = '22px ' + FONT; c.fillText('出典 ' + src, x + PAD, y + h - 16); }
+                }
+                c.restore();
+                c.strokeStyle = EX.ink; c.lineWidth = 6; rrect(c, x, y, PW, h, 10); c.stroke();
+            }
+            y += rowH[r] + EX.G;
+        }
+        if (opt.showFooter) {
+            c.fillStyle = EX.muted; c.font = '22px ' + FONT;
+            var fl = wrapText(c, '出典: ' + title, W - M * 2).slice(0, 2).concat(wrapText(c, '4コマ論文で作成。イラストは雰囲気を示すイメージで、実際のデータではありません。文は論文の記述から抜き出したものです。重要な点は必ず原文で確認してください。', W - M * 2));
+            fl.slice(0, 4).forEach(function (l, i) { c.fillText(l, M, y + 8 + 30 + i * 30); });
+        }
+        return cv;
+    }
+    function saveCanvas(cv, name) {
+        return new Promise(function (res, rej) {
+            cv.toBlob(function (b) {
+                if (!b) return rej(new Error('画像を作成できませんでした'));
+                var url = URL.createObjectURL(b), a = document.createElement('a');
+                a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+                setTimeout(function () { URL.revokeObjectURL(url); }, 4000); res();
+            }, 'image/png');
+        });
+    }
+    async function exportImage(which) {
+        if (!current) return;
+        var title = current.a.title, slug = title.normalize('NFKD').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30), base = '4koma-' + (slug || 'paper');
+        if (document.fonts && document.fonts.ready) await document.fonts.ready;
+        var byId = function (id) { return current.books.filter(function (b) { return b.id === id; })[0]; };
+        if (which === 'both') {
+            var c1 = await drawBook(byId('overview'), title, { showTitle: true, showFooter: false });
+            var c2 = await drawBook(byId('findings'), title, { showTitle: false, showFooter: true });
+            var all = document.createElement('canvas'); all.width = EX.W; all.height = c1.height + c2.height;
+            var g = all.getContext('2d'); g.drawImage(c1, 0, 0); g.drawImage(c2, 0, c1.height);
+            await saveCanvas(all, base + '-all8.png');
+        } else {
+            var bk = byId(which);
+            await saveCanvas(await drawBook(bk, title, { showTitle: true, showFooter: true }), base + '-' + which + '.png');
+        }
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('[data-exp]'), function (btn) {
+        btn.addEventListener('click', async function () {
+            var msg = $('#exp-msg'), all = document.querySelectorAll('[data-exp]');
+            Array.prototype.forEach.call(all, function (b) { b.disabled = true; });
+            msg.textContent = '画像を作成しています…';
+            try { await exportImage(btn.dataset.exp); msg.textContent = '保存しました。'; }
+            catch (e) { console.error(e); msg.textContent = '保存に失敗しました: ' + e.message; }
+            finally { Array.prototype.forEach.call(all, function (b) { b.disabled = false; }); }
+        });
+    });
 
     /* ================= related research (OpenAlex) ================= */
     var SELECT = 'id,doi,title,publication_year,cited_by_count,authorships,primary_location,referenced_works,related_works';
@@ -741,7 +920,7 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
     }
 
     /* ================= pipeline ================= */
-    var running = false;
+    var running = false, current = null;
     async function run(source) {
         if (running) return;
         running = true; resetSteps(); $('#result').hidden = true;
@@ -759,6 +938,7 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
                 try { setStep(1, 'run', 'AIでやさしく書き直し中'); await aiRewrite(a, flat); usedAi = true; }
                 catch (e) { showAlert('AIでの書き直しに失敗したため、ローカル抽出の結果を表示します。(' + e.message + ')'); }
             }
+            current = { a: a, books: books };
             renderMeta(a, doc, usedAi); books.forEach(function (b) { renderPanels(b.panels, b.el); });
             $('#result').hidden = false;
             setStep(1, 'done', usedAi ? 'AIで書き直し' : '2本(8コマ)を作成');
