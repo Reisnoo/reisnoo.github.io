@@ -257,6 +257,8 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             <button class="btn sub" type="button" data-exp="numbers">数値編</button>
             <button class="btn sub" type="button" data-exp="both">8コマを1枚で</button>
             <button class="btn" type="button" data-exp="pdf">PDFで保存</button>
+            <button class="btn sub" type="button" data-exp="csv" title="本文・図表キャプション・表のセルの数値を、1行1値の形でまとめたCSV">数値CSV</button>
+            <button class="btn sub" type="button" data-exp="tablecsv" title="読み取った表を、元の行と列のままCSVにしたもの">表CSV</button>
             <span class="fine" id="exp-msg" role="status" style="margin:0"></span>
         </div>
         <section class="book" aria-labelledby="b1-h">
@@ -1546,7 +1548,7 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             (anyPair ? ' 2つ以上の値が並んで書かれている箇所は、バー図にしています(軸は0から。「差」は本文の数値から計算した参考値です)。差だけが書かれていて元の値がない場合は、バー図にしていません。' : '') +
             (anySig ? ' 「有意」は、偶然でもこのくらいの差が出る確率(p値)が小さい(一般に0.05未満)ときに使われる言葉です。差の大きさや重要さを示すものではありません。' : '');
         current.hasNums = hasNums(nums);
-        var nb = document.querySelector('[data-exp="numbers"]'); if (nb) nb.disabled = !current.hasNums;
+        syncExportButtons();
         sec.hidden = false;
     }
 
@@ -1690,6 +1692,8 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
     async function exportImage(which) {
         if (!current) return;
         var title = current.a.title, slug = title.normalize('NFKD').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30), base = '4koma-' + (slug || 'paper');
+        if (which === 'csv') { saveBlob(new Blob([toCsv(numbersCsvRows())], { type: 'text/csv;charset=utf-8' }), base + '-numbers.csv'); return; }
+        if (which === 'tablecsv') { saveBlob(new Blob([toCsv(tablesCsvRows())], { type: 'text/csv;charset=utf-8' }), base + '-tables.csv'); return; }
         if (document.fonts && document.fonts.ready) await document.fonts.ready;
         var byId = function (id) { return current.books.filter(function (b) { return b.id === id; })[0]; };
         if (which === 'both') {
@@ -1991,6 +1995,80 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         put('trailer\n<< /Size ' + (info + 1) + ' /Root 1 0 R /Info ' + info + ' 0 R >>\nstartxref\n' + xref + '\n%%EOF\n');
         return new Blob(chunks, { type: 'application/pdf' });
     }
+
+    /* ================= CSV export ================= */
+    function csvEscape(v) {
+        var t = String(v == null ? '' : v);
+        // neutralise spreadsheet formulas coming from untrusted PDF text; plain numbers such as "+0.6" are left alone
+        if (/^[=@\t\r]/.test(t) || (/^[+\-]/.test(t) && !/^[+\-]\d[\d.,]*%?$/.test(t))) t = "'" + t;
+        return /[",\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+    }
+    function toCsv(rows) { return '﻿' + rows.map(function (r) { return r.map(csvEscape).join(','); }).join('\r\n') + '\r\n'; }
+    function valInfo(t) {
+        var m = String(t).trim().match(/^[<>≤≥~≈]?\s*([-−–+]?)(\d[\d,]*(?:\.\d+)?)\s*(.*)$/);
+        if (!m) return { num: '', unit: '' };
+        return { num: (/[-−–]/.test(m[1]) ? '-' : '') + m[2].replace(/,/g, ''), unit: m[3].trim() };
+    }
+    var CSV_HEAD = ['区分', 'ページ', '章・位置', '図表', '項目', '列', '値(原文の表記)', '数値', '単位', '増減', '比較対象', '有意性', '照合', '備考', '原文'];
+    function tableVerify(tb) {
+        var pc = defaultPair(tb), cc = pc ? changeCol(tb, pc) : null;
+        return (pc && cc != null) ? verifyChange(tb, pc[0], pc[1], cc) : null;
+    }
+    function numbersCsvRows() {
+        var n = current.nums, rows = [CSV_HEAD];
+        var dirText = { up: '増加', down: '減少', none: '' };
+        n.conds.forEach(function (c) {
+            var vi = valInfo(c.text);
+            rows.push(['実験条件', c.page || '', SEC_LABEL[c.section] || c.section || '', '', c.label, '', c.text, vi.num, vi.unit, '', '', '', '', '', c.sentence]);
+        });
+        n.facts.forEach(function (f) {
+            var kind = f.cap ? '数値(図表キャプション)' : '数値(本文)', common = function (item, col, text, unit, num, note) {
+                var vi = valInfo(text);
+                return [kind, f.page || '', f.section === 'caption' ? '図表キャプション' : (SEC_LABEL[f.section] || f.section || ''), figChips(f).join(' / '), item, col, text, num != null ? num : vi.num, unit != null ? unit : vi.unit,
+                    dirText[f.dir] || '', f.compare || '', f.sig ? SIG_TEXT[f.sig] + (f.p ? '(' + f.p + ')' : '') : '', '', (f.ai ? 'AIが整理(本文と照合済み)' : '') + (note ? (f.ai ? ' / ' : '') + note : ''), f.sentence];
+            };
+            if (f.series) {
+                f.series.items.forEach(function (it) { rows.push(common(it.label, f.series.title, it.text, f.series.unit, it.numText)); });
+                if (f.series.diff) rows.push(common('最高−最低(' + f.series.hi.label + '−' + f.series.lo.label + ')', f.series.title, f.series.diff, '', f.series.diff.replace(/[^\d.+\-−]/g, '').replace('−', '-'), '計算値'));
+            } else if (f.pair) {
+                [f.pair.a, f.pair.b].forEach(function (it) { rows.push(common(it.label, f.pair.title, it.text, f.pair.unit, it.numText)); });
+                if (f.pair.diff) rows.push(common('差(' + f.pair.b.label + '−' + f.pair.a.label + ')', f.pair.title, f.pair.diff, '', f.pair.diff.replace(/[^\d.+\-−]/g, '').replace('−', '-'), '計算値'));
+            } else {
+                f.values.forEach(function (v) { rows.push(common(f.label || '', '', v.text)); });
+            }
+        });
+        (n.tables || []).forEach(function (tb) {
+            var ver = tableVerify(tb), rowSt = {};
+            if (ver) ver.rows.forEach(function (r) { rowSt[r.idx] = VSTAT[r.st].t + '(計算 ' + r.comp + ')'; });
+            tb.rows.forEach(function (r, ri) {
+                for (var k = 1; k < tb.header.length; k++) {
+                    var cell = r[k] || '', pv = parseCell(cell);
+                    rows.push(['表', tb.page, '表から読み取り', tb.label, r[0] || '', tb.header[k] || ('列' + (k + 1)), cell, pv ? (pv.num < 0 ? '-' : '') + pv.numText.replace(/,/g, '') : '', pv ? tableUnitOf(tb, k) : '', '', '', '',
+                        (ver && k === ver.col && rowSt[ri]) ? rowSt[ri] : '', tb.conf === 'high' ? '' : '要確認(列がそろっていません)', tb.caption]);
+                }
+            });
+        });
+        return rows;
+    }
+    function tablesCsvRows() {
+        var rows = [];
+        current.nums.tables.forEach(function (tb, i) {
+            if (i) rows.push([]);
+            rows.push(['# ' + tb.label + '(p.' + tb.page + ') ' + (tb.caption || '') + (tb.conf === 'high' ? '' : ' [要確認: 列がそろっていません]')]);
+            rows.push(tb.header.map(function (h, k) { return h || ('列' + (k + 1)); }));
+            tb.rows.forEach(function (r) { rows.push(r); });
+        });
+        return rows;
+    }
+    function exportAvailable(which) {
+        if (!current) return false;
+        if (which === 'numbers' || which === 'csv') return !!current.hasNums;
+        if (which === 'tablecsv') return !!(current.nums && current.nums.tables && current.nums.tables.length);
+        return true;
+    }
+    function syncExportButtons() {
+        Array.prototype.forEach.call(document.querySelectorAll('[data-exp]'), function (b) { b.disabled = !exportAvailable(b.dataset.exp); });
+    }
     function saveBlob(blob, name) {
         var url = URL.createObjectURL(blob), a = document.createElement('a');
         a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
@@ -2001,9 +2079,9 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             var msg = $('#exp-msg'), all = document.querySelectorAll('[data-exp]');
             Array.prototype.forEach.call(all, function (b) { b.disabled = true; });
             msg.textContent = '画像を作成しています…';
-            try { await exportImage(btn.dataset.exp); msg.textContent = '保存しました。'; }
+            try { await exportImage(btn.dataset.exp); msg.textContent = /csv$/i.test(btn.dataset.exp) ? '保存しました。UTF-8(BOM付き)なので、Excelでも開けます。数式として実行されないよう、先頭が「=」「@」などの文字には「\'」を付けています。' : '保存しました。'; }
             catch (e) { console.error(e); msg.textContent = '保存に失敗しました: ' + e.message; }
-            finally { Array.prototype.forEach.call(all, function (b) { b.disabled = b.dataset.exp === 'numbers' && !(current && current.hasNums); }); }
+            finally { syncExportButtons(); }
         });
     });
 
