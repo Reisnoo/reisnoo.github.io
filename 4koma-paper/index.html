@@ -122,15 +122,20 @@ h1 { font-size: clamp(1.7rem, 5vw, 2.6rem); line-height: 1.3; }
 .mx th button { background: none; border: 0; font: inherit; font-weight: 700; color: inherit; cursor: pointer; padding: 0; }
 .mx th small { display: block; font-weight: 400; color: var(--muted); font-size: .72rem; }
 .mx th .kk { display: block; font-weight: 400; font-size: .68rem; color: var(--accent); }
-.mx td.empty { color: var(--line); text-align: center; }
+.mx td.mxe { color: var(--line); text-align: center; }
 .mx td.hi { background: color-mix(in srgb, #2b8a3e 18%, var(--surface)); font-weight: 800; }
 .mx td.lo { background: color-mix(in srgb, #c2410c 14%, var(--surface)); }
 .clist { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 8px; }
 .clist li { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; background: var(--surface-2); border-radius: 10px; padding: 8px 12px; }
 .clist .t { font-weight: 700; overflow-wrap: anywhere; }
 .clist .m { font-size: .8rem; color: var(--muted); overflow-wrap: anywhere; }
-.clist button { grid-row: 1 / span 2; grid-column: 2; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 2px 10px; font-size: .8rem; color: var(--muted); }
+.clist .cb { grid-row: 1 / span 2; grid-column: 2; display: flex; gap: 6px; align-items: center; }
+.clist li.on { outline: 2px solid var(--accent); }
+.clist .now { font-size: .72rem; font-weight: 700; color: var(--accent-ink); background: var(--accent); border-radius: 6px; padding: 0 8px; margin-left: 8px; vertical-align: middle; }
+.clist button { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 2px 10px; font-size: .8rem; color: var(--muted); }
 .clist button:hover { border-color: var(--warn); color: var(--warn); }
+.clist button.show { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.clist button.show:hover { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
 .toolbar .tb-label { font-size: .85rem; font-weight: 700; margin-right: 4px; }
 .toolbar .btn { padding: 6px 16px; font-size: .9rem; }
@@ -279,7 +284,7 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
 
     <section class="collect" id="collect" hidden aria-labelledby="collect-h">
         <h2 id="collect-h">集計した論文 <small id="collect-n"></small></h2>
-        <p class="fine">複数のPDFをまとめて選ぶと、順番に解析して、数値をここに貯めます。同じ論文を入れ直すと、置き換わります。この一覧はページを閉じると消えます。</p>
+        <p class="fine">複数のPDFをまとめて選ぶと、論文ごとに4コマと数値を作って、ここに貯めます。各論文の「表示」を押すと、その論文の4コマ・数値・関連研究に切り替わります(画像・PDF・CSVの保存は、表示中の論文が対象です)。同じ論文を入れ直すと、置き換わります。この一覧はページを閉じると消えます。</p>
         <ul class="clist" id="collect-list"></ul>
 
         <div class="mx-sec" id="mx" hidden>
@@ -295,6 +300,7 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         </div>
         <div class="toolbar" role="group" aria-label="まとめて保存">
             <button class="btn" type="button" data-col="csv">まとめCSV(数値)</button>
+            <button class="btn" type="button" data-col="pdfall" title="集計した全論文の、概要編・結果編・数値編を、1つのPDFにします">全論文の4コマをPDFで保存</button>
             <button class="btn sub" type="button" data-col="tablecsv">まとめCSV(表)</button>
             <button class="btn sub" type="button" data-col="mxcsv" title="いま画面に出ている一覧表(論文×項目)をCSVにします">一覧表CSV</button>
             <button class="btn sub" type="button" data-col="clear">一覧をすべて削除</button>
@@ -1759,10 +1765,7 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         } else if (which === 'numbers') {
             await saveCanvas(await drawNumbers(current.nums, title, { showTitle: true }), base + '-numbers.png');
         } else if (which === 'pdf') {
-            var cvs = [await drawBook(byId('overview'), title, { showTitle: true, showFooter: true }), await drawBook(byId('findings'), title, { showTitle: true, showFooter: true })];
-            if (current.hasNums) cvs.push(await drawNumbers(current.nums, title, { showTitle: true }));
-            var pages = cvs.map(function (cv) { return { w: cv.width, h: cv.height, jpeg: dataUrlBytes(cv.toDataURL('image/jpeg', 0.92)) }; });
-            saveBlob(buildPdf(pages, title), base + '.pdf');
+            saveBlob(buildPdf(await paperPages(current), title), base + '.pdf');
         } else {
             var bk = byId(which);
             await saveCanvas(await drawBook(bk, title, { showTitle: true, showFooter: true }), base + '-' + which + '.png');
@@ -2123,6 +2126,12 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
     function syncExportButtons() {
         Array.prototype.forEach.call(document.querySelectorAll('[data-exp]'), function (b) { b.disabled = !exportAvailable(b.dataset.exp); });
     }
+    async function paperPages(rec) {
+        var title = rec.a.title, byId = function (id) { return rec.books.filter(function (b) { return b.id === id; })[0]; };
+        var cvs = [await drawBook(byId('overview'), title, { showTitle: true, showFooter: true }), await drawBook(byId('findings'), title, { showTitle: true, showFooter: true })];
+        if (hasNums(rec.nums)) cvs.push(await drawNumbers(rec.nums, title, { showTitle: true }));
+        return cvs.map(function (cv) { return { w: cv.width, h: cv.height, jpeg: dataUrlBytes(cv.toDataURL('image/jpeg', 0.92)) }; });
+    }
     function saveBlob(blob, name) {
         var url = URL.createObjectURL(blob), a = document.createElement('a');
         a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
@@ -2258,8 +2267,9 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
                 try { setStep(1, 'run', 'AIでやさしく書き直し中'); await aiRewrite(a, flat, nums); usedAi = true; }
                 catch (e) { showAlert('AIでの書き直しに失敗したため、ローカル抽出の結果を表示します。(' + e.message + ')'); }
             }
-            current = { a: a, books: books, nums: nums };
-            collectAdd({ fileName: doc.fileName || '', title: a.title, pages: a.pages, nums: nums });
+            var rec = { fileName: doc.fileName || '', title: a.title, pages: a.pages, nums: nums, a: a, books: books, usedAi: usedAi, rel: undefined };
+            current = { a: a, books: books, nums: nums, rec: rec }; activeRec = rec;
+            collectAdd(rec);
             renderMeta(a, doc, usedAi); books.forEach(function (b) { renderPanels(b.panels, b.el); }); renderNumbers(nums);
             $('#result').hidden = false;
             setStep(1, 'done', usedAi ? 'AIで書き直し' : '2本(8コマ)を作成');
@@ -2267,14 +2277,15 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
 
             if (opts.skipRelated) {
                 $('#rel-seg').textContent = ''; $('#rel-list').textContent = ''; $('#rel-hint').textContent = '';
-                $('#rel-sub').textContent = '複数の論文をまとめて処理したため、この論文の関連研究は検索していません。(最後の論文だけ検索します)';
+                $('#rel-sub').textContent = '複数の論文をまとめて処理しているため、この論文の関連研究は、まだ検索していません。(集計の一覧で「表示」を押すと検索します)';
                 setStep(2, 'skip', 'まとめ処理のため省略');
             } else {
                 setStep(2, 'run');
                 $('#rel-seg').textContent = ''; $('#rel-list').textContent = ''; $('#rel-hint').textContent = ''; $('#rel-sub').textContent = '探しています…';
                 try {
                     var rel = await loadRelated(a);
-                    renderRelated(rel, a);
+                    rec.rel = rel;
+                    if (activeRec === rec) renderRelated(rel, a);
                     setStep(2, rel.mode === 'none' ? 'skip' : 'done', rel.mode === 'matched' ? '論文を特定して取得' : rel.mode === 'keyword' ? 'キーワードで検索' : '対象なし');
                 } catch (e) {
                     $('#rel-sub').textContent = '関連研究を取得できませんでした(' + e.message + ')。4コマの結果はそのまま使えます。';
@@ -2293,7 +2304,28 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
 
 
     /* ================= collection of several papers ================= */
-    var collection = [];
+    var collection = [], activeRec = null;
+    function showPaper(rec) {
+        activeRec = rec;
+        current = { a: rec.a, books: rec.books, nums: rec.nums, rec: rec };
+        renderMeta(rec.a, null, rec.usedAi);
+        rec.books.forEach(function (b) { renderPanels(b.panels, b.el); });
+        renderNumbers(rec.nums);
+        $('#result').hidden = false;
+        renderCollect();
+        if (rec.rel) renderRelated(rec.rel, rec.a); else loadRelatedFor(rec);
+        $('#meta').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    }
+    async function loadRelatedFor(rec) {
+        $('#rel-seg').textContent = ''; $('#rel-list').textContent = ''; $('#rel-hint').textContent = ''; $('#rel-sub').textContent = '探しています…';
+        try {
+            var rel = await loadRelated(rec.a);
+            rec.rel = rel;
+            if (activeRec === rec) renderRelated(rel, rec.a);
+        } catch (e) {
+            if (activeRec === rec) $('#rel-sub').textContent = '関連研究を取得できませんでした(' + e.message + ')。4コマの結果はそのまま使えます。';
+        }
+    }
     var collectKey = function (r) { return r.fileName + '|' + r.title; };
     function collectAdd(rec) {
         if (rec.fileName === 'sample.pdf') return;
@@ -2307,12 +2339,15 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         $('#collect-n').textContent = collection.length + '件';
         ul.textContent = '';
         collection.forEach(function (r, i) {
-            var li = el('li');
-            li.appendChild(el('span', 't', r.title));
+            var li = el('li', r === activeRec ? 'on' : null), tt = el('span', 't', r.title);
+            if (r === activeRec) tt.appendChild(el('span', 'now', '表示中'));
+            li.appendChild(tt);
             li.appendChild(el('span', 'm', r.fileName + ' ・ ' + r.pages + 'ページ ・ 数値 ' + r.nums.facts.length + '件 ・ 表 ' + (r.nums.tables || []).length + '件 ・ 条件 ' + r.nums.conds.length + '件'));
+            var cb = el('div', 'cb'), sh = el('button', 'show', '表示'); sh.type = 'button'; sh.setAttribute('aria-label', r.title + ' の4コマと数値を表示する');
+            sh.addEventListener('click', function () { showPaper(r); });
             var rm = el('button', null, '削除'); rm.type = 'button'; rm.setAttribute('aria-label', r.title + ' を一覧から削除');
-            rm.addEventListener('click', function () { collection.splice(i, 1); renderCollect(); });
-            li.appendChild(rm); ul.appendChild(li);
+            rm.addEventListener('click', function () { if (activeRec === r) activeRec = null; collection.splice(i, 1); renderCollect(); });
+            cb.appendChild(sh); cb.appendChild(rm); li.appendChild(cb); ul.appendChild(li);
         });
         var anyNum = collection.some(function (r) { return hasNums(r.nums); }), anyTab = collection.some(function (r) { return (r.nums.tables || []).length; });
         $('[data-col="csv"]').disabled = !anyNum; $('[data-col="tablecsv"]').disabled = !anyTab;
@@ -2407,7 +2442,7 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         rowIdx.forEach(function (pi) {
             var tr = el('tr'), th = el('td', null, collection[pi].title); th.title = collection[pi].fileName; tr.appendChild(th);
             cols.forEach(function (it) {
-                var c = m.cells[pi][it.key], td = el('td', c ? null : 'empty', c ? c.text : '–');
+                var c = m.cells[pi][it.key], td = el('td', c ? null : 'mxe', c ? c.text : '–');
                 if (c) { td.title = c.src; var mk = mark[it.key]; if (mk && c.num != null && c.n === 1) { if (c.num === mk.hi) td.className = 'hi'; else if (c.num === mk.lo) td.className = 'lo'; } }
                 tr.appendChild(td);
             });
@@ -2454,10 +2489,26 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         });
         return rows;
     }
+    async function exportAllPdf(msg) {
+        if (document.fonts && document.fonts.ready) await document.fonts.ready;
+        var pages = [];
+        for (var i = 0; i < collection.length; i++) {
+            msg.textContent = (i + 1) + ' / ' + collection.length + ' 件目の4コマを作成中: ' + collection[i].title.slice(0, 40);
+            await new Promise(function (r) { setTimeout(r, 0); });
+            pages = pages.concat(await paperPages(collection[i]));
+        }
+        saveBlob(buildPdf(pages, '4コマ論文 まとめ(' + collection.length + '件)'), '4koma-collection-all.pdf');
+        msg.textContent = collection.length + '件の論文(' + pages.length + 'ページ)を、1つのPDFにしました。';
+    }
     Array.prototype.forEach.call(document.querySelectorAll('[data-col]'), function (btn) {
-        btn.addEventListener('click', function () {
+        btn.addEventListener('click', async function () {
             var which = btn.dataset.col, msg = $('#collect-msg');
-            if (which === 'clear') { collection = []; renderCollect(); return; }
+            if (which === 'pdfall') {
+                btn.disabled = true;
+                try { await exportAllPdf(msg); } catch (e) { console.error(e); msg.textContent = '保存に失敗しました: ' + e.message; } finally { btn.disabled = false; }
+                return;
+            }
+            if (which === 'clear') { collection = []; activeRec = null; renderCollect(); return; }
             var rows = which === 'csv' ? collectNumbersRows() : which === 'mxcsv' ? matrixCsvRows() : collectTablesRows();
             saveBlob(new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8' }), '4koma-collection-' + (which === 'csv' ? 'numbers' : which === 'mxcsv' ? 'matrix' : 'tables') + '.csv');
             msg.textContent = collection.length + '件の論文をまとめて保存しました。';
