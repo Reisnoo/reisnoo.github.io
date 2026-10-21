@@ -103,6 +103,15 @@ h1 { font-size: clamp(1.7rem, 5vw, 2.6rem); line-height: 1.3; }
 .terms { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: .85rem; }
 .terms b { color: var(--accent); }
 
+.collect { margin-top: 28px; padding: 18px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.collect h2 { font-size: 1.15rem; }
+.collect h2 small { font-weight: 400; color: var(--muted); font-size: .85rem; margin-left: 6px; }
+.clist { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 8px; }
+.clist li { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; background: var(--surface-2); border-radius: 10px; padding: 8px 12px; }
+.clist .t { font-weight: 700; overflow-wrap: anywhere; }
+.clist .m { font-size: .8rem; color: var(--muted); overflow-wrap: anywhere; }
+.clist button { grid-row: 1 / span 2; grid-column: 2; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 2px 10px; font-size: .8rem; color: var(--muted); }
+.clist button:hover { border-color: var(--warn); color: var(--warn); }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
 .toolbar .tb-label { font-size: .85rem; font-weight: 700; margin-right: 4px; }
 .toolbar .btn { padding: 6px 16px; font-size: .9rem; }
@@ -215,7 +224,7 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
     .steps { grid-template-columns: 1fr; }
     .drop { padding: 30px 16px; }
 }
-@media print { .top, .drop, .sample, .steps, .seg, .toolbar { display: none; } body { background: #fff; } }
+@media print { .top, .drop, .sample, .steps, .seg, .toolbar, .collect { display: none; } body { background: #fff; } }
 </style>
 </head>
 <body>
@@ -233,9 +242,9 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         <p class="lead">PDFを入れると、<b>概要編</b>(背景・課題・ねらい・方法)と<b>結果編</b>(確かめたこと・結果・意味・限界)の4コマ×2本に、実験結果の<b>数値編</b>と関連研究を並べます。画像・PDFでも保存できます。コマごとに、論文のどこから取った文かを確認できます。</p>
 
         <label class="drop" id="drop">
-            <input type="file" id="file" accept="application/pdf,.pdf" class="sr">
+            <input type="file" id="file" accept="application/pdf,.pdf" class="sr" multiple>
             <span class="icon" aria-hidden="true">📄</span>
-            <strong>PDFをここにドロップ、またはクリックして選択</strong>
+            <strong>PDFをここにドロップ、またはクリックして選択(複数可・30件まで)</strong>
             <span>PDFは端末内で読み取り、アップロードしません(AI設定をオンにした場合を除く)</span>
         </label>
         <button class="sample" id="sample-btn" type="button">PDFがない場合: デモ用の架空の論文で試す</button>
@@ -246,6 +255,19 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             <li data-s="wait"><b>関連研究を探す</b><span>OpenAlex に問い合わせ</span></li>
         </ol>
         <div class="alert" id="alert" role="alert" hidden></div>
+        <p class="fine" id="batch-msg" role="status"></p>
+    </section>
+
+    <section class="collect" id="collect" hidden aria-labelledby="collect-h">
+        <h2 id="collect-h">集計した論文 <small id="collect-n"></small></h2>
+        <p class="fine">複数のPDFをまとめて選ぶと、順番に解析して、数値をここに貯めます。同じ論文を入れ直すと、置き換わります。この一覧はページを閉じると消えます。</p>
+        <ul class="clist" id="collect-list"></ul>
+        <div class="toolbar" role="group" aria-label="まとめて保存">
+            <button class="btn" type="button" data-col="csv">まとめCSV(数値)</button>
+            <button class="btn sub" type="button" data-col="tablecsv">まとめCSV(表)</button>
+            <button class="btn sub" type="button" data-col="clear">一覧をすべて削除</button>
+            <span class="fine" id="collect-msg" role="status" style="margin:0"></span>
+        </div>
     </section>
 
     <section id="result" hidden aria-label="解析結果">
@@ -1692,8 +1714,8 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
     async function exportImage(which) {
         if (!current) return;
         var title = current.a.title, slug = title.normalize('NFKD').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30), base = '4koma-' + (slug || 'paper');
-        if (which === 'csv') { saveBlob(new Blob([toCsv(numbersCsvRows())], { type: 'text/csv;charset=utf-8' }), base + '-numbers.csv'); return; }
-        if (which === 'tablecsv') { saveBlob(new Blob([toCsv(tablesCsvRows())], { type: 'text/csv;charset=utf-8' }), base + '-tables.csv'); return; }
+        if (which === 'csv') { saveBlob(new Blob([toCsv(numbersCsvRows(current.nums))], { type: 'text/csv;charset=utf-8' }), base + '-numbers.csv'); return; }
+        if (which === 'tablecsv') { saveBlob(new Blob([toCsv(tablesCsvRows(current.nums))], { type: 'text/csv;charset=utf-8' }), base + '-tables.csv'); return; }
         if (document.fonts && document.fonts.ready) await document.fonts.ready;
         var byId = function (id) { return current.books.filter(function (b) { return b.id === id; })[0]; };
         if (which === 'both') {
@@ -2014,8 +2036,8 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         var pc = defaultPair(tb), cc = pc ? changeCol(tb, pc) : null;
         return (pc && cc != null) ? verifyChange(tb, pc[0], pc[1], cc) : null;
     }
-    function numbersCsvRows() {
-        var n = current.nums, rows = [CSV_HEAD];
+    function numbersCsvRows(n) {
+        var rows = [CSV_HEAD];
         var dirText = { up: '増加', down: '減少', none: '' };
         n.conds.forEach(function (c) {
             var vi = valInfo(c.text);
@@ -2050,9 +2072,9 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         });
         return rows;
     }
-    function tablesCsvRows() {
+    function tablesCsvRows(n) {
         var rows = [];
-        current.nums.tables.forEach(function (tb, i) {
+        n.tables.forEach(function (tb, i) {
             if (i) rows.push([]);
             rows.push(['# ' + tb.label + '(p.' + tb.page + ') ' + (tb.caption || '') + (tb.conf === 'high' ? '' : ' [要確認: 列がそろっていません]')]);
             rows.push(tb.header.map(function (h, k) { return h || ('列' + (k + 1)); }));
@@ -2185,9 +2207,11 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
 
     /* ================= pipeline ================= */
     var running = false, current = null;
-    async function run(source) {
-        if (running) return;
+    async function run(source, opts) {
+        opts = opts || {};
+        if (running) return false;
         running = true; resetSteps(); $('#result').hidden = true;
+        var ok = false;
         try {
             setStep(0, 'run');
             var doc = source.pages ? source : await readPdf(source);
@@ -2203,41 +2227,119 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
                 catch (e) { showAlert('AIでの書き直しに失敗したため、ローカル抽出の結果を表示します。(' + e.message + ')'); }
             }
             current = { a: a, books: books, nums: nums };
+            collectAdd({ fileName: doc.fileName || '', title: a.title, pages: a.pages, nums: nums });
             renderMeta(a, doc, usedAi); books.forEach(function (b) { renderPanels(b.panels, b.el); }); renderNumbers(nums);
             $('#result').hidden = false;
             setStep(1, 'done', usedAi ? 'AIで書き直し' : '2本(8コマ)を作成');
             $('#strip-overview').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
 
-            setStep(2, 'run');
-            $('#rel-seg').textContent = ''; $('#rel-list').textContent = ''; $('#rel-hint').textContent = ''; $('#rel-sub').textContent = '探しています…';
-            try {
-                var rel = await loadRelated(a);
-                renderRelated(rel, a);
-                setStep(2, rel.mode === 'none' ? 'skip' : 'done', rel.mode === 'matched' ? '論文を特定して取得' : rel.mode === 'keyword' ? 'キーワードで検索' : '対象なし');
-            } catch (e) {
-                $('#rel-sub').textContent = '関連研究を取得できませんでした(' + e.message + ')。4コマの結果はそのまま使えます。';
-                setStep(2, 'err', '取得できませんでした');
+            if (opts.skipRelated) {
+                $('#rel-seg').textContent = ''; $('#rel-list').textContent = ''; $('#rel-hint').textContent = '';
+                $('#rel-sub').textContent = '複数の論文をまとめて処理したため、この論文の関連研究は検索していません。(最後の論文だけ検索します)';
+                setStep(2, 'skip', 'まとめ処理のため省略');
+            } else {
+                setStep(2, 'run');
+                $('#rel-seg').textContent = ''; $('#rel-list').textContent = ''; $('#rel-hint').textContent = ''; $('#rel-sub').textContent = '探しています…';
+                try {
+                    var rel = await loadRelated(a);
+                    renderRelated(rel, a);
+                    setStep(2, rel.mode === 'none' ? 'skip' : 'done', rel.mode === 'matched' ? '論文を特定して取得' : rel.mode === 'keyword' ? 'キーワードで検索' : '対象なし');
+                } catch (e) {
+                    $('#rel-sub').textContent = '関連研究を取得できませんでした(' + e.message + ')。4コマの結果はそのまま使えます。';
+                    setStep(2, 'err', '取得できませんでした');
+                }
             }
+            ok = true;
         } catch (e) {
             console.error(e);
             var active = stepEls.findIndex(function (li) { return li.dataset.s === 'run'; });
             if (active >= 0) setStep(active, 'err');
             showAlert(e.message || 'PDFの解析に失敗しました。');
         } finally { running = false; }
+        return ok;
     }
+
+
+    /* ================= collection of several papers ================= */
+    var collection = [];
+    var collectKey = function (r) { return r.fileName + '|' + r.title; };
+    function collectAdd(rec) {
+        if (rec.fileName === 'sample.pdf') return;
+        var i = collection.map(collectKey).indexOf(collectKey(rec));
+        if (i >= 0) collection[i] = rec; else collection.push(rec);
+        renderCollect();
+    }
+    function renderCollect() {
+        var sec = $('#collect'), ul = $('#collect-list');
+        sec.hidden = !collection.length;
+        $('#collect-n').textContent = collection.length + '件';
+        ul.textContent = '';
+        collection.forEach(function (r, i) {
+            var li = el('li');
+            li.appendChild(el('span', 't', r.title));
+            li.appendChild(el('span', 'm', r.fileName + ' ・ ' + r.pages + 'ページ ・ 数値 ' + r.nums.facts.length + '件 ・ 表 ' + (r.nums.tables || []).length + '件 ・ 条件 ' + r.nums.conds.length + '件'));
+            var rm = el('button', null, '削除'); rm.type = 'button'; rm.setAttribute('aria-label', r.title + ' を一覧から削除');
+            rm.addEventListener('click', function () { collection.splice(i, 1); renderCollect(); });
+            li.appendChild(rm); ul.appendChild(li);
+        });
+        var anyNum = collection.some(function (r) { return hasNums(r.nums); }), anyTab = collection.some(function (r) { return (r.nums.tables || []).length; });
+        $('[data-col="csv"]').disabled = !anyNum; $('[data-col="tablecsv"]').disabled = !anyTab;
+        $('#collect-msg').textContent = '';
+    }
+    function collectNumbersRows() {
+        var rows = [['論文', 'ファイル'].concat(CSV_HEAD)];
+        collection.forEach(function (r) { numbersCsvRows(r.nums).slice(1).forEach(function (row) { rows.push([r.title, r.fileName].concat(row)); }); });
+        return rows;
+    }
+    function collectTablesRows() {
+        var rows = [], first = true;
+        collection.forEach(function (r) {
+            if (!(r.nums.tables || []).length) return;
+            if (!first) rows.push([]);
+            first = false;
+            rows.push(['# 論文: ' + r.title + ' (' + r.fileName + ')']);
+            tablesCsvRows(r.nums).forEach(function (row) { rows.push(row); });
+        });
+        return rows;
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('[data-col]'), function (btn) {
+        btn.addEventListener('click', function () {
+            var which = btn.dataset.col, msg = $('#collect-msg');
+            if (which === 'clear') { collection = []; renderCollect(); return; }
+            var rows = which === 'csv' ? collectNumbersRows() : collectTablesRows();
+            saveBlob(new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8' }), '4koma-collection-' + (which === 'csv' ? 'numbers' : 'tables') + '.csv');
+            msg.textContent = collection.length + '件の論文をまとめて保存しました。';
+        });
+    });
 
     /* ================= input handlers ================= */
     var drop = $('#drop'), input = $('#file');
-    function handleFile(f) {
-        if (!f) return;
-        if (!/pdf$/i.test(f.type) && !/\.pdf$/i.test(f.name)) { showAlert('PDFファイルを選んでください。'); return; }
-        if (f.size > 60 * 1024 * 1024) { showAlert('ファイルが大きすぎます(60MBまで)。'); return; }
-        run(f);
+    var MAX_FILES = 30, MAX_BYTES = 60 * 1024 * 1024;
+    async function handleFiles(list) {
+        if (running) { showAlert('解析中です。終わってからもう一度お試しください。'); return; }
+        var files = Array.prototype.slice.call(list || []), skipped = [];
+        var pdfs = files.filter(function (f) {
+            if (!/pdf$/i.test(f.type) && !/\.pdf$/i.test(f.name)) { skipped.push(f.name + '(PDFではありません)'); return false; }
+            if (f.size > MAX_BYTES) { skipped.push(f.name + '(ファイルが大きすぎます。60MBまで)'); return false; }
+            return true;
+        });
+        if (pdfs.length > MAX_FILES) { skipped.push((MAX_FILES + 1) + '件目以降(一度に' + MAX_FILES + '件まで)'); pdfs = pdfs.slice(0, MAX_FILES); }
+        var msg = $('#batch-msg'), failed = [];
+        msg.textContent = '';
+        for (var i = 0; i < pdfs.length; i++) {
+            if (pdfs.length > 1) msg.textContent = (i + 1) + ' / ' + pdfs.length + ' 件目を解析中: ' + pdfs[i].name;
+            var ok = await run(pdfs[i], { skipRelated: i < pdfs.length - 1 });
+            if (!ok) failed.push(pdfs[i].name + '(解析に失敗)');
+        }
+        if (pdfs.length > 1) msg.textContent = (pdfs.length - failed.length) + '件を集計に追加しました。画面には、最後の論文を表示しています。';
+        var problems = skipped.concat(pdfs.length > 1 ? failed : []);
+        if (!pdfs.length) showAlert(skipped.length ? 'PDFファイルを選んでください。(' + skipped.join('、') + ')' : '');
+        else if (problems.length) showAlert('次のファイルは処理できませんでした: ' + problems.join('、'));
     }
-    input.addEventListener('change', function () { handleFile(input.files[0]); input.value = ''; });
+    input.addEventListener('change', function () { var fs = Array.prototype.slice.call(input.files); input.value = ''; handleFiles(fs); });
     ['dragenter', 'dragover'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
     ['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('over'); }); });
-    drop.addEventListener('drop', function (e) { handleFile(e.dataTransfer.files[0]); });
+    drop.addEventListener('drop', function (e) { handleFiles(e.dataTransfer.files); });
 
     /* demo: a fictional paper, so the page can be tried without a PDF */
     var SAMPLE = [[
