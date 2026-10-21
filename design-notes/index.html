@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>COFFEE TETHER 設計ノート</title>
+<meta name="description" content="COFFEE TETHER を「課題設定 → 設計判断 → 限界」の順に振り返る設計ノート。">
+<style>
+:root {
+    --bg: #faf6ef;
+    --surface: #ffffff;
+    --surface-2: #f3ebdd;
+    --text: #2b211a;
+    --muted: #6f6254;
+    --line: #e4d9c6;
+    --primary: #6b3f24;
+    --primary-ink: #ffffff;
+    --accent: #c98a3a;
+    --ok: #2f7d5b;
+    --warn: #b4572b;
+    --focus: #1f6feb;
+}
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --bg: #17120e; --surface: #221b15; --surface-2: #2c231b; --text: #f1e8dc;
+        --muted: #b3a493; --line: #3a2f25; --primary: #e0a56e; --primary-ink: #1d140d;
+        --accent: #e0a56e; --ok: #6fcf9f; --warn: #f0976b; --focus: #6aa6ff;
+    }
+}
+:root[data-theme="dark"] {
+    --bg: #17120e; --surface: #221b15; --surface-2: #2c231b; --text: #f1e8dc;
+    --muted: #b3a493; --line: #3a2f25; --primary: #e0a56e; --primary-ink: #1d140d;
+    --accent: #e0a56e; --ok: #6fcf9f; --warn: #f0976b; --focus: #6aa6ff;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 76px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; } }
+body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", sans-serif;
+    line-height: 1.8; -webkit-font-smoothing: antialiased;
+}
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+button { font: inherit; color: inherit; cursor: pointer; }
+h1, h2, h3, p { margin: 0; }
+
+/* layout */
+.page { max-width: 1080px; margin: 0 auto; padding: 0 16px 120px; display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 48px; }
+.rail { position: sticky; top: 0; align-self: start; padding-top: 56px; }
+.rail-title { font-size: .75rem; letter-spacing: .12em; color: var(--muted); margin-bottom: 16px; }
+.rail ol { list-style: none; margin: 0; padding: 0; border-left: 2px solid var(--line); }
+.rail a {
+    display: block; padding: 10px 0 10px 16px; margin-left: -2px; border-left: 2px solid transparent;
+    color: var(--muted); text-decoration: none; font-size: .95rem; transition: color .2s, border-color .2s;
+}
+.rail a .n { display: block; font-size: .7rem; letter-spacing: .1em; }
+.rail a[aria-current="true"] { color: var(--primary); border-left-color: var(--primary); font-weight: 700; }
+.theme-btn { margin-top: 28px; background: none; border: 1px solid var(--line); border-radius: 999px; padding: 4px 14px; font-size: .8rem; color: var(--muted); }
+
+main { padding-top: 56px; min-width: 0; }
+.hero { padding-bottom: 56px; border-bottom: 1px solid var(--line); }
+.eyebrow { font-size: .78rem; letter-spacing: .14em; color: var(--accent); font-weight: 700; }
+h1 { font-size: clamp(2rem, 6vw, 3.2rem); line-height: 1.25; margin: 12px 0 20px; letter-spacing: -.01em; }
+.lead { color: var(--muted); max-width: 40em; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+.chip { font-size: .8rem; padding: 3px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); }
+
+.chapter { padding-top: 72px; }
+.ch-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 12px; }
+.ch-num { font-size: 3rem; font-weight: 800; color: var(--accent); line-height: 1; font-variant-numeric: tabular-nums; }
+h2 { font-size: clamp(1.4rem, 4vw, 1.9rem); line-height: 1.4; }
+.ch-sub { color: var(--muted); margin-bottom: 32px; max-width: 42em; }
+h3 { font-size: 1.1rem; line-height: 1.5; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px; margin-top: 20px; }
+.card > h3 + p { margin-top: 8px; }
+.tag { display: inline-block; font-size: .72rem; font-weight: 700; letter-spacing: .06em; padding: 1px 10px; border-radius: 6px; margin-right: 8px; vertical-align: middle; }
+.tag.adopt { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+.tag.drop { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.tag.id { background: var(--surface-2); color: var(--muted); }
+
+.demo { background: var(--surface-2); border-radius: 12px; padding: 18px; margin-top: 18px; }
+.demo-label { font-size: .75rem; letter-spacing: .1em; color: var(--muted); margin-bottom: 10px; font-weight: 700; }
+.demo p.note { font-size: .9rem; color: var(--muted); margin-top: 12px; }
+
+/* problem demo */
+.range-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.range-row input[type=range] { flex: 1; min-width: 160px; accent-color: var(--primary); }
+.review { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; padding: 12px 0; border-top: 1px solid var(--line); align-items: center; }
+.review:first-of-type { border-top: 0; }
+.review .shop { font-weight: 700; }
+.review .who { font-size: .85rem; color: var(--muted); }
+.gap { font-variant-numeric: tabular-nums; font-weight: 700; padding: 2px 12px; border-radius: 999px; font-size: .85rem; white-space: nowrap; }
+.gap.near { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+.gap.far { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.meter { grid-column: 1 / -1; position: relative; height: 8px; background: var(--line); border-radius: 4px; }
+.meter i { position: absolute; top: -3px; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: var(--primary); border: 2px solid var(--surface); transition: left .25s; }
+.meter i.me { background: var(--accent); }
+
+/* log toggles */
+.logs { display: grid; gap: 8px; }
+.log-row { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; padding: 8px 12px; background: var(--surface); border-radius: 10px; border: 1px solid var(--line); }
+.heart { background: none; border: 0; font-size: 1.4rem; line-height: 1; padding: 4px; color: var(--muted); }
+.heart[aria-pressed="true"] { color: #d6455d; }
+.log-row small { color: var(--muted); display: block; }
+.bars { display: grid; gap: 6px; margin-top: 16px; }
+.bar-row { display: grid; grid-template-columns: 4.5em 1fr 2.4em; gap: 10px; align-items: center; font-size: .9rem; }
+.bar { height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; }
+.bar b { display: block; height: 100%; background: var(--primary); border-radius: 5px; transition: width .3s; }
+.bar.alt b { background: var(--line); background-image: repeating-linear-gradient(45deg, var(--muted) 0 3px, transparent 3px 7px); opacity: .6; }
+.cmp-title { font-size: .85rem; font-weight: 700; margin-top: 14px; }
+
+/* tag picker */
+.tagpick { display: flex; flex-wrap: wrap; gap: 8px; }
+.tagbtn { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 14px; font-size: .9rem; }
+.tagbtn[aria-pressed="true"] { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
+.rank { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 8px; }
+.rank li { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; }
+.rank li.zero { opacity: .5; }
+.rank .why { grid-column: 1 / -1; font-size: .85rem; color: var(--muted); }
+.score { font-weight: 800; color: var(--primary); font-variant-numeric: tabular-nums; }
+
+/* trade-off */
+.trade { margin-top: 14px; font-size: .92rem; border-left: 3px solid var(--warn); padding: 2px 0 2px 14px; color: var(--muted); }
+.trade a { color: var(--warn); font-weight: 700; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
+.cols > div { font-size: .93rem; }
+.cols .k { font-size: .75rem; font-weight: 700; letter-spacing: .06em; color: var(--muted); display: block; margin-bottom: 2px; }
+
+/* limits */
+.matrix-wrap { margin-top: 20px; }
+.matrix { position: relative; height: 320px; border: 1px solid var(--line); border-radius: 14px; background:
+    linear-gradient(var(--line), var(--line)) center / 1px 100% no-repeat,
+    linear-gradient(var(--line), var(--line)) center / 100% 1px no-repeat, var(--surface); }
+.matrix .ax { position: absolute; font-size: .72rem; color: var(--muted); letter-spacing: .06em; }
+.ax.top { top: 8px; left: 12px; } .ax.bot { bottom: 8px; left: 12px; }
+.ax.r { bottom: 8px; right: 12px; } .ax.q { top: 8px; right: 12px; color: var(--accent); font-weight: 700; }
+.dot { position: absolute; transform: translate(-50%, -50%); width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--primary); background: var(--surface); font-weight: 800; font-size: .85rem; color: var(--primary); }
+.dot[aria-pressed="true"] { background: var(--primary); color: var(--primary-ink); }
+.detail { margin-top: 16px; padding: 18px; border-radius: 12px; background: var(--surface-2); min-height: 7.5em; }
+.detail h3 { margin-bottom: 4px; }
+.detail dl { margin: 10px 0 0; display: grid; grid-template-columns: 5.5em 1fr; gap: 4px 12px; font-size: .92rem; }
+.detail dt { color: var(--muted); } .detail dd { margin: 0; }
+.legend { list-style: none; padding: 0; margin: 20px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px; font-size: .88rem; color: var(--muted); }
+.legend b { color: var(--primary); margin-right: 6px; }
+
+.persist { display: grid; gap: 12px; }
+.persist form { display: flex; gap: 8px; flex-wrap: wrap; }
+.persist input[type=text] { flex: 1; min-width: 160px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: inherit; font: inherit; }
+.btn { border: 1px solid var(--primary); background: var(--primary); color: var(--primary-ink); border-radius: 8px; padding: 8px 16px; font-weight: 700; }
+.btn.ghost { background: transparent; color: var(--primary); }
+.mem { list-style: none; padding: 0; margin: 0; min-height: 3.2em; display: grid; gap: 6px; }
+.mem li { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; font-size: .92rem; }
+.mem li.empty { color: var(--muted); border-style: dashed; background: transparent; }
+.switch { display: flex; align-items: center; gap: 8px; font-size: .9rem; }
+.switch input { width: 18px; height: 18px; accent-color: var(--primary); }
+
+.roadmap { list-style: none; padding: 0; margin: 20px 0 0; counter-reset: r; display: grid; gap: 10px; }
+.roadmap li { counter-increment: r; display: grid; grid-template-columns: 2.2em 1fr; gap: 12px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.roadmap li::before { content: counter(r); font-weight: 800; font-size: 1.4rem; color: var(--accent); line-height: 1.2; }
+.roadmap small { color: var(--muted); display: block; }
+
+footer { margin-top: 72px; padding-top: 24px; border-top: 1px solid var(--line); font-size: .85rem; color: var(--muted); }
+
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (max-width: 820px) {
+    .page { grid-template-columns: 1fr; gap: 0; }
+    .rail { position: sticky; z-index: 5; top: 0; padding: 8px 0; margin: 0 -16px; padding-inline: 16px; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+    .rail-title, .theme-btn { display: none; }
+    .rail ol { display: flex; border-left: 0; gap: 4px; }
+    .rail li { flex: 1; }
+    .rail a { padding: 6px 4px; margin: 0; text-align: center; border-left: 0; border-bottom: 2px solid transparent; font-size: .85rem; }
+    .rail a[aria-current="true"] { border-bottom-color: var(--primary); }
+    main { padding-top: 32px; }
+    .cols, .legend { grid-template-columns: 1fr; }
+    .card { padding: 18px; }
+    .matrix { height: 300px; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<nav class="rail" aria-label="章ナビゲーション">
+    <p class="rail-title">DESIGN NOTES</p>
+    <ol>
+        <li><a href="#problem"><span class="n">01</span>課題設定</a></li>
+        <li><a href="#decision"><span class="n">02</span>設計判断</a></li>
+        <li><a href="#limit"><span class="n">03</span>限界</a></li>
+    </ol>
+    <button class="theme-btn" id="theme-btn" type="button">テーマ切替</button>
+</nav>
+
+<main>
+    <header class="hero">
+        <p class="eyebrow">DESIGN NOTES / COFFEE TETHER</p>
+        <h1>好みを記録するアプリを、<br>作ったあとに疑う。</h1>
+        <p class="lead">コーヒーの味覚ログ「COFFEE TETHER」を、課題設定・設計判断・限界の順に振り返ったノートです。各章のグレーの枠は、実際に触って確かめられます。</p>
+        <div class="chips" aria-label="対象">
+            <span class="chip">HTML / CSS / JS 単体</span>
+            <span class="chip">4軸の味評価 + フレーバータグ</span>
+            <span class="chip">♥ → QR / おすすめ</span>
+        </div>
+    </header>
+
+    <!-- 01 -->
+    <section class="chapter" id="problem" aria-labelledby="problem-h">
+        <div class="ch-head"><span class="ch-num" aria-hidden="true">01</span><h2 id="problem-h">課題設定</h2></div>
+        <p class="ch-sub">解きたいのは「おいしいカフェを探す」ことではなく、「自分にとっておいしい」を、他人の口コミから見つけること。</p>
+
+        <article class="card">
+            <h3>課題 A　口コミは「書いた人の好み」で書かれている</h3>
+            <p>同じ「酸味が心地いい」でも、酸味を5と感じる人と3と感じる人では、行った後の評価が変わります。口コミを読む前に、自分の位置を知る必要があります。</p>
+            <div class="demo">
+                <p class="demo-label">TRY　自分の酸味の好みを動かす</p>
+                <div class="range-row">
+                    <label for="my-acidity">あなたの好む酸味</label>
+                    <input type="range" id="my-acidity" min="1" max="5" value="2">
+                    <output id="my-acidity-out" for="my-acidity">2</output>
+                </div>
+                <div id="reviews" aria-live="polite"></div>
+                <p class="note">口コミごとの「ズレ」が小さいほど、その人の感想は参考にしやすい、と考えます。</p>
+            </div>
+        </article>
+
+        <article class="card">
+            <h3>課題 B　好みが言語化できず、記録も散らばる</h3>
+            <p>「酸っぱいのは好き。でも浅煎りは違う」のように、好みは複数の軸にまたがります。メモアプリに書いた感想は、あとで比べられません。</p>
+        </article>
+
+        <article class="card">
+            <h3>課題 C　空のアプリは使われない</h3>
+            <p>記録がゼロの状態では、おすすめも味覚チャートも出せません。最初の1杯までをどう短くするかが、入口の課題です。</p>
+        </article>
+    </section>
+
+    <!-- 02 -->
+    <section class="chapter" id="decision" aria-labelledby="decision-h">
+        <div class="ch-head"><span class="ch-num" aria-hidden="true">02</span><h2 id="decision-h">設計判断</h2></div>
+        <p class="ch-sub">各判断を「採用案・却下案・理由・代償」の4つで残します。代償は、次の章の「限界」へつながります。</p>
+
+        <article class="card" id="d1">
+            <h3><span class="tag id">D1</span>味を4軸のスライダーとタグで入力する</h3>
+            <div class="cols">
+                <div><span class="k"><span class="tag adopt">採用</span></span>焙煎度・酸味・苦味・コクを5段階で、香りはタグで選ぶ</div>
+                <div><span class="k"><span class="tag drop">却下</span></span>自由記述のみ</div>
+                <div><span class="k">理由</span>数秒で入力でき、レーダーチャートで形として比べられる(課題B)</div>
+                <div><span class="k">代償</span>5段階の「4」は人によって違う</div>
+            </div>
+            <p class="trade">代償 → <a href="#limit" data-pick="L4">L4 味の評価が主観</a></p>
+        </article>
+
+        <article class="card" id="d2">
+            <h3><span class="tag id">D2</span>QRとチャートには「♥した記録だけ」を反映する</h3>
+            <div class="cols">
+                <div><span class="k"><span class="tag adopt">採用</span></span>♥の記録の平均を「マイ・ブレンドパス」にする</div>
+                <div><span class="k"><span class="tag drop">却下</span></span>全記録の平均</div>
+                <div><span class="k">理由</span>「行った」と「好き」を分けないと、好みが平均に薄まる(課題A・B)</div>
+                <div><span class="k">代償</span>♥が少ないうちは、1件の影響が大きい</div>
+            </div>
+            <div class="demo">
+                <p class="demo-label">TRY　♥を付け外しして、平均を比べる</p>
+                <div class="logs" id="d2-logs"></div>
+                <div class="bars" id="d2-bars"></div>
+                <p class="note">しま模様が「全記録の平均」です。浅煎りが好きな人の記録に、深煎りが混ざると平均が中央に寄ります。</p>
+            </div>
+        </article>
+
+        <article class="card" id="d3">
+            <h3><span class="tag id">D3</span>おすすめは「タグの一致数」で決める</h3>
+            <div class="cols">
+                <div><span class="k"><span class="tag adopt">採用</span></span>♥した記録のタグと、口コミのタグの一致数で並べる</div>
+                <div><span class="k"><span class="tag drop">却下</span></span>4軸の数値の距離で並べる類似度</div>
+                <div><span class="k">理由</span>「ベリーと紅茶が一致」と理由を言える。数値の近さは説明しにくい</div>
+                <div><span class="k">代償</span>口コミが少ないと一致が出ない</div>
+            </div>
+            <div class="demo">
+                <p class="demo-label">TRY　好きなタグを選ぶ</p>
+                <div class="tagpick" id="d3-tags" role="group" aria-label="好きなフレーバー"></div>
+                <ol class="rank" id="d3-rank" aria-live="polite"></ol>
+            </div>
+            <p class="trade">代償 → <a href="#limit" data-pick="L3">L3 おすすめが単純</a></p>
+        </article>
+
+        <article class="card" id="d4">
+            <h3><span class="tag id">D4</span>味覚診断は4問、いつでもスキップできる</h3>
+            <div class="cols">
+                <div><span class="k"><span class="tag adopt">採用</span></span>二択中心の4問。回答は初期プロフィールと初期タグになる</div>
+                <div><span class="k"><span class="tag drop">却下</span></span>長い診断、またはスキップ不可</div>
+                <div><span class="k">理由</span>記録ゼロでも最初の画面を空にしない(課題C)。でも、診断で足止めはしない</div>
+                <div><span class="k">代償</span>4問の精度は低く、質問と選択肢のタグが合わないことがある</div>
+            </div>
+            <p class="trade">代償 → <a href="#limit" data-pick="L7">L7 診断のタグ不整合</a></p>
+        </article>
+    </section>
+
+    <!-- 03 -->
+    <section class="chapter" id="limit" aria-labelledby="limit-h">
+        <div class="ch-head"><span class="ch-num" aria-hidden="true">03</span><h2 id="limit-h">限界</h2></div>
+        <p class="ch-sub">できていないことを、影響の大きさと直す手間で並べました。丸を押すと詳細が出ます。</p>
+
+        <div class="matrix-wrap">
+            <div class="matrix" id="matrix" role="group" aria-label="限界の優先度マップ">
+                <span class="ax top">影響 大</span><span class="ax bot">影響 小</span>
+                <span class="ax r">手間 大 →</span><span class="ax q">まず着手</span>
+            </div>
+            <div class="detail" id="limit-detail" aria-live="polite"></div>
+            <ul class="legend" id="legend"></ul>
+        </div>
+
+        <article class="card">
+            <h3>限界を実感する　記録はリロードで消える</h3>
+            <p>現在のアプリは、記録をメモリ上の配列にしか持ちません。「次の一手」を入れると何が変わるか、試せます。</p>
+            <div class="demo persist">
+                <p class="demo-label">TRY　記録を足して、リロードを再現する</p>
+                <form id="mem-form">
+                    <label class="sr" for="mem-input">記録名</label>
+                    <input type="text" id="mem-input" placeholder="例: GLITCH COFFEE の浅煎り" maxlength="40" autocomplete="off">
+                    <button class="btn" type="submit">記録を追加</button>
+                    <button class="btn ghost" type="button" id="mem-reload">リロードを再現</button>
+                </form>
+                <label class="switch"><input type="checkbox" id="mem-persist"> 保存先を localStorage にする(次の一手)</label>
+                <ul class="mem" id="mem-list" aria-live="polite"></ul>
+                <p class="note" id="mem-note"></p>
+            </div>
+        </article>
+
+        <h3 style="margin-top:40px">次にやること</h3>
+        <ol class="roadmap">
+            <li><div><b>記録を localStorage に保存する</b><small>L1。数十行で済み、影響が最も大きい。</small></div></li>
+            <li><div><b>口コミの件数に応じて、推薦の出し方を切り替える</b><small>L3。少ないうちは「最近の口コミ」を出し、増えたら一致数で並べる。</small></div></li>
+            <li><div><b>店舗側がQRを読み取る最小の画面を作る</b><small>L5。読んだ人が味の傾向を見られる、1画面だけでよい。</small></div></li>
+        </ol>
+    </section>
+
+    <footer>
+        COFFEE TETHER 設計ノート ・ 数値とデータはアプリ本体のサンプルデータに基づきます。
+    </footer>
+</main>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    /* ---------- data (from the app's sample data) ---------- */
+    var COMMUNITY = [
+        { user: 'Takuya', shop: 'GLITCH COFFEE', acidity: 5, tags: ['ベリー', '紅茶', 'ジャスミン'] },
+        { user: 'Yuki',   shop: 'Fuglen Tokyo',  acidity: 4, tags: ['リンゴ', 'レモン'] },
+        { user: 'Kenji',  shop: '堀口珈琲',       acidity: 1, tags: ['ダークチョコ', 'アーモンド'] }
+    ];
+    var SAMPLE_LOGS = [
+        { name: 'エチオピア 浅煎り', a: 5, b: 1, bd: 2, fav: true },
+        { name: 'コロンビア 中煎り', a: 3, b: 3, bd: 3, fav: false },
+        { name: 'ブラジル 深煎り',   a: 1, b: 5, bd: 5, fav: false },
+        { name: 'ケニア 浅煎り',     a: 5, b: 2, bd: 2, fav: true }
+    ];
+    var LIMITS = [
+        { id: 'L1', title: '記録がリロードで消える', x: 14, y: 14, impact: '大', effort: '小',
+          body: '記録は変数 visitLogs に入るだけで、ブラウザに保存していません。', fix: 'localStorage に保存・復元する。' },
+        { id: 'L2', title: 'ログインとアカウントが仮実装', x: 86, y: 18, impact: '大', effort: '大',
+          body: '名前とIDは固定表示で、ログアウトはページの再読み込みです。複数端末での同期もできません。', fix: '認証とバックエンドが必要。静的ホスティングのままでは解決できない。' },
+        { id: 'L3', title: 'おすすめが単純', x: 50, y: 36, impact: '中', effort: '中',
+          body: 'タグの一致数だけで並べます。口コミが3件ほどの現状では、一致が出ないことがあります。', fix: '件数に応じた切り替えと、4軸の近さを補助に使う。' },
+        { id: 'L4', title: '味の評価が主観', x: 90, y: 50, impact: '中', effort: '大',
+          body: '同じ「酸味4」でも、人によって基準が違います。比較の精度は上げられません。', fix: '基準になる豆(リファレンス)を提示し、それとの相対で付けてもらう。' },
+        { id: 'L5', title: 'QRの受け手がいない', x: 68, y: 66, impact: '中', effort: '大',
+          body: 'QRに好みのデータを入れていますが、店舗側で読み取る仕組みがありません。', fix: '読み取り専用の1画面を作り、店と一緒に検証する。' },
+        { id: 'L6', title: '地図が固定の検索語', x: 16, y: 84, impact: '小', effort: '小',
+          body: '埋め込み地図は "Specialty Coffee" の検索が基本で、お店を押すと切り替わるだけです。', fix: '住所があれば座標を保存し、ピンを立てる。' },
+        { id: 'L7', title: '診断のタグ不整合', x: 34, y: 88, impact: '小', effort: '小',
+          body: '診断Q3の選択肢のタグ「ピーナッツ」が、記録フォームのタグ一覧にありません。', fix: 'タグ一覧に追加するか、選択肢を既存のタグに置き換える。' }
+    ];
+
+    var $ = function (s, r) { return (r || document).querySelector(s); };
+    function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+    /* ---------- theme ---------- */
+    $('#theme-btn').addEventListener('click', function () {
+        var root = document.documentElement;
+        var dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+        root.dataset.theme = dark ? 'light' : 'dark';
+    });
+
+    /* ---------- scroll spy ---------- */
+    var links = Array.prototype.slice.call(document.querySelectorAll('.rail a'));
+    function setCurrent(id) {
+        links.forEach(function (a) {
+            if (a.getAttribute('href') === '#' + id) a.setAttribute('aria-current', 'true');
+            else a.removeAttribute('aria-current');
+        });
+    }
+    if ('IntersectionObserver' in window) {
+        var io = new IntersectionObserver(function (entries) {
+            entries.forEach(function (en) { if (en.isIntersecting) setCurrent(en.target.id); });
+        }, { rootMargin: '-30% 0px -60% 0px' });
+        document.querySelectorAll('.chapter').forEach(function (s) { io.observe(s); });
+    }
+    setCurrent('problem');
+
+    /* ---------- 01: review gap demo ---------- */
+    var acid = $('#my-acidity'), acidOut = $('#my-acidity-out'), reviews = $('#reviews');
+    function renderReviews() {
+        var me = +acid.value;
+        acidOut.textContent = me;
+        reviews.textContent = '';
+        COMMUNITY.forEach(function (r) {
+            var gap = Math.abs(r.acidity - me);
+            var row = el('div', 'review');
+            var left = el('div');
+            left.appendChild(el('div', 'shop', r.shop));
+            left.appendChild(el('div', 'who', r.user + ' さんの酸味評価: ' + r.acidity));
+            var badge = el('span', 'gap ' + (gap <= 1 ? 'near' : 'far'), gap === 0 ? 'ズレ 0' : 'ズレ ' + gap);
+            var meter = el('div', 'meter');
+            meter.setAttribute('aria-hidden', 'true');
+            var pos = function (v) { return ((v - 1) / 4) * 100 + '%'; };
+            var dotR = el('i'); dotR.style.left = pos(r.acidity);
+            var dotMe = el('i', 'me'); dotMe.style.left = pos(me);
+            meter.appendChild(dotR); meter.appendChild(dotMe);
+            row.appendChild(left); row.appendChild(badge); row.appendChild(meter);
+            reviews.appendChild(row);
+        });
+    }
+    acid.addEventListener('input', renderReviews);
+    renderReviews();
+
+    /* ---------- 02 D2: favourites average ---------- */
+    var d2Logs = $('#d2-logs'), d2Bars = $('#d2-bars');
+    function avg(list, key) { return list.length ? list.reduce(function (s, l) { return s + l[key]; }, 0) / list.length : 0; }
+    function renderD2() {
+        d2Logs.textContent = '';
+        SAMPLE_LOGS.forEach(function (l, i) {
+            var row = el('div', 'log-row');
+            var btn = el('button', 'heart', '♥');
+            btn.type = 'button';
+            btn.setAttribute('aria-pressed', String(l.fav));
+            btn.setAttribute('aria-label', l.name + ' をお気に入りにする');
+            btn.addEventListener('click', function () { SAMPLE_LOGS[i].fav = !SAMPLE_LOGS[i].fav; renderD2(); });
+            var info = el('div');
+            info.appendChild(el('span', null, l.name));
+            info.appendChild(el('small', null, '酸味 ' + l.a + ' / 苦味 ' + l.b + ' / コク ' + l.bd));
+            row.appendChild(btn); row.appendChild(info);
+            d2Logs.appendChild(row);
+        });
+        var favs = SAMPLE_LOGS.filter(function (l) { return l.fav; });
+        d2Bars.textContent = '';
+        d2Bars.appendChild(el('p', 'cmp-title', 'マイ・ブレンドパス(♥のみ・採用案)' + (favs.length ? '' : ' ― ♥がありません')));
+        [['酸味', 'a'], ['苦味', 'b'], ['コク', 'bd']].forEach(function (ax) { d2Bars.appendChild(barRow(ax[0], avg(favs, ax[1]), false)); });
+        d2Bars.appendChild(el('p', 'cmp-title', '全記録の平均(却下案)'));
+        [['酸味', 'a'], ['苦味', 'b'], ['コク', 'bd']].forEach(function (ax) { d2Bars.appendChild(barRow(ax[0], avg(SAMPLE_LOGS, ax[1]), true)); });
+    }
+    function barRow(label, v, alt) {
+        var r = el('div', 'bar-row');
+        var bar = el('div', 'bar' + (alt ? ' alt' : ''));
+        var fill = document.createElement('b');
+        fill.style.width = (v / 5 * 100) + '%';
+        bar.appendChild(fill);
+        r.appendChild(el('span', null, label)); r.appendChild(bar); r.appendChild(el('span', null, v ? v.toFixed(1) : '–'));
+        return r;
+    }
+    renderD2();
+
+    /* ---------- 02 D3: tag match ranking ---------- */
+    var allTags = [];
+    COMMUNITY.forEach(function (c) { c.tags.forEach(function (t) { if (allTags.indexOf(t) < 0) allTags.push(t); }); });
+    var picked = ['ベリー'];
+    var tagBox = $('#d3-tags'), rank = $('#d3-rank');
+    function renderD3() {
+        tagBox.textContent = '';
+        allTags.forEach(function (t) {
+            var b = el('button', 'tagbtn', t);
+            b.type = 'button';
+            b.setAttribute('aria-pressed', String(picked.indexOf(t) >= 0));
+            b.addEventListener('click', function () {
+                var i = picked.indexOf(t);
+                if (i >= 0) picked.splice(i, 1); else picked.push(t);
+                renderD3();
+            });
+            tagBox.appendChild(b);
+        });
+        rank.textContent = '';
+        var scored = COMMUNITY.map(function (c) {
+            var hit = c.tags.filter(function (t) { return picked.indexOf(t) >= 0; });
+            return { c: c, hit: hit };
+        }).sort(function (a, b) { return b.hit.length - a.hit.length; });
+        if (!picked.length) { rank.appendChild(el('li', 'zero', 'タグを選ぶと、おすすめが並びます。')); return; }
+        scored.forEach(function (s) {
+            var li = el('li', s.hit.length ? '' : 'zero');
+            li.appendChild(el('strong', null, s.c.shop));
+            li.appendChild(el('span', 'score', s.hit.length + ' 一致'));
+            li.appendChild(el('span', 'why', s.hit.length ? '「' + s.hit.join('・') + '」が一致 ― ' + s.c.user + ' さんの口コミ' : '一致するタグがありません(表示はされません)'));
+            rank.appendChild(li);
+        });
+    }
+    renderD3();
+
+    /* ---------- 03: limits matrix ---------- */
+    var matrix = $('#matrix'), detail = $('#limit-detail'), legend = $('#legend');
+    var dots = {};
+    function showLimit(id) {
+        var L = LIMITS.filter(function (l) { return l.id === id; })[0];
+        if (!L) return;
+        Object.keys(dots).forEach(function (k) { dots[k].setAttribute('aria-pressed', String(k === id)); });
+        detail.textContent = '';
+        detail.appendChild(el('h3', null, L.id + '　' + L.title));
+        var dl = el('dl');
+        [['現状', L.body], ['影響', L.impact], ['手間', L.effort], ['直し方', L.fix]].forEach(function (p) {
+            dl.appendChild(el('dt', null, p[0])); dl.appendChild(el('dd', null, p[1]));
+        });
+        detail.appendChild(dl);
+    }
+    LIMITS.forEach(function (L) {
+        var d = el('button', 'dot', L.id.replace('L', ''));
+        d.type = 'button';
+        d.style.left = L.x + '%'; d.style.top = L.y + '%';
+        d.setAttribute('aria-label', L.id + ' ' + L.title + '(影響' + L.impact + '・手間' + L.effort + ')');
+        d.setAttribute('aria-pressed', 'false');
+        d.addEventListener('click', function () { showLimit(L.id); });
+        dots[L.id] = d;
+        matrix.appendChild(d);
+        var li = el('li');
+        li.appendChild(el('b', null, L.id)); li.appendChild(document.createTextNode(L.title));
+        legend.appendChild(li);
+    });
+    showLimit('L1');
+    document.querySelectorAll('[data-pick]').forEach(function (a) {
+        a.addEventListener('click', function () { showLimit(a.dataset.pick); });
+    });
+
+    /* ---------- 03: persistence demo ---------- */
+    var KEY = 'coffee-tether-notes-demo';
+    var memList = $('#mem-list'), memNote = $('#mem-note'), memInput = $('#mem-input'), memPersist = $('#mem-persist');
+    var items = [];
+    function store(op, val) {
+        try {
+            if (op === 'set') localStorage.setItem(KEY, JSON.stringify(val));
+            else if (op === 'clear') localStorage.removeItem(KEY);
+            else { var raw = localStorage.getItem(KEY); return raw ? JSON.parse(raw) : []; }
+        } catch (e) { return []; }
+        return [];
+    }
+    function renderMem() {
+        memList.textContent = '';
+        if (!items.length) memList.appendChild(el('li', 'empty', 'まだ記録がありません'));
+        items.forEach(function (t) { memList.appendChild(el('li', null, t)); });
+    }
+    $('#mem-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var v = memInput.value.trim();
+        if (!v) return;
+        items.push(v);
+        if (memPersist.checked) store('set', items);
+        memInput.value = '';
+        memNote.textContent = '';
+        renderMem();
+    });
+    $('#mem-reload').addEventListener('click', function () {
+        items = memPersist.checked ? store('get') : [];
+        memNote.textContent = memPersist.checked
+            ? 'リロードしました。localStorage から記録が復元されました。'
+            : 'リロードしました。メモリ上の記録はすべて消えました(現在のアプリの挙動)。';
+        renderMem();
+    });
+    memPersist.addEventListener('change', function () {
+        if (memPersist.checked) store('set', items); else store('clear');
+    });
+    renderMem();
+})();
+</script>
+</body>
+</html>
