@@ -136,6 +136,34 @@ h1 { font-size: clamp(1.7rem, 5vw, 2.6rem); line-height: 1.3; }
 .clist button:hover { border-color: var(--warn); color: var(--warn); }
 .clist button.show { border-color: var(--accent); color: var(--accent); font-weight: 700; }
 .clist button.show:hover { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.rbar { position: sticky; top: 0; z-index: 6; background: color-mix(in srgb, var(--bg) 94%, transparent); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); padding: 8px 0; margin: 0 0 4px; }
+.rbar-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.rbar-btns { display: inline-flex; gap: 6px; }
+.rbar-nav { display: flex; gap: 6px; overflow-x: auto; padding: 6px 0 2px; }
+.rbar-nav button { flex: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 2px 12px; font-size: .8rem; color: var(--ink); max-width: 20em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rbar-nav button:hover { border-color: var(--accent); color: var(--accent); }
+.paper { scroll-margin-top: 96px; margin-top: 28px; border: 2px solid var(--ink); border-radius: 14px; background: var(--surface); }
+.paper > .paper-sum { list-style: none; cursor: pointer; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 12px 16px; background: var(--surface-2); border-radius: 12px; }
+.paper[open] > .paper-sum { border-bottom: 2px solid var(--ink); border-radius: 12px 12px 0 0; }
+.paper-sum::-webkit-details-marker { display: none; }
+.paper-sum::before { content: '▾'; font-size: 1.1rem; }
+.paper:not([open]) > .paper-sum::before { content: '▸'; }
+.paper-sum .pn { font-weight: 800; background: var(--ink); color: var(--bg); border-radius: 6px; padding: 0 10px; font-size: .85rem; }
+.paper-sum .pt { font-weight: 800; font-size: 1.05rem; overflow-wrap: anywhere; flex: 1; min-width: 12em; }
+.paper-sum .pm { font-size: .8rem; color: var(--muted); }
+.paper-body { padding: 4px 16px 20px; }
+.paper-body .meta { margin-top: 14px; }
+dialog#dl-dialog { max-width: 820px; }
+.dl-lead { margin-bottom: 8px; }
+.dl-preview { max-height: 52vh; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: var(--surface-2); display: grid; gap: 10px; }
+.dl-preview img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); background: #fff; }
+.dl-preview figure { margin: 0; } .dl-preview figcaption { font-size: .75rem; color: var(--muted); text-align: center; }
+.dl-preview table { border-collapse: collapse; font-size: .75rem; }
+.dl-preview td, .dl-preview th { border: 1px solid var(--line); padding: 2px 6px; white-space: nowrap; max-width: 16em; overflow: hidden; text-overflow: ellipsis; text-align: left; background: var(--surface); }
+.dl-preview th { background: var(--surface-2); }
+.dl-name input { margin-top: 4px; }
+.dl-meta { margin-top: 8px; }
+.dl-note { margin-top: 6px; font-size: .78rem; }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
 .toolbar .tb-label { font-size: .85rem; font-weight: 700; margin-right: 4px; }
 .toolbar .btn { padding: 6px 16px; font-size: .9rem; }
@@ -248,7 +276,7 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
     .steps { grid-template-columns: 1fr; }
     .drop { padding: 30px 16px; }
 }
-@media print { .top, .drop, .sample, .steps, .seg, .toolbar, .collect, .mx-sec { display: none; } body { background: #fff; } }
+@media print { .top, .drop, .sample, .steps, .seg, .toolbar, .collect, .mx-sec, .rbar { display: none; } body { background: #fff; } }
 </style>
 </head>
 <body>
@@ -263,7 +291,7 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
 <main>
     <section class="hero" aria-labelledby="h1">
         <h1 id="h1">論文PDFを、<br>4コマで読む。</h1>
-        <p class="lead">PDFを入れると、<b>概要編</b>(背景・課題・ねらい・方法)と<b>結果編</b>(確かめたこと・結果・意味・限界)の4コマ×2本に、実験結果の<b>数値編</b>と関連研究を並べます。画像・PDFでも保存できます。コマごとに、論文のどこから取った文かを確認できます。</p>
+        <p class="lead">PDFを入れると(<b>複数まとめて</b>入れると、論文ごとに、全部並べて)、<b>概要編</b>(背景・課題・ねらい・方法)と<b>結果編</b>(確かめたこと・結果・意味・限界)の4コマ×2本に、実験結果の<b>数値編</b>と関連研究を並べます。画像・PDFでも保存できます。コマごとに、論文のどこから取った文かを確認できます。</p>
 
         <label class="drop" id="drop">
             <input type="file" id="file" accept="application/pdf,.pdf" class="sr" multiple>
@@ -280,6 +308,15 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         </ol>
         <div class="alert" id="alert" role="alert" hidden></div>
         <p class="fine" id="batch-msg" role="status"></p>
+    </section>
+
+
+    <section id="results" hidden aria-label="解析結果">
+        <div class="rbar" id="rbar">
+            <div class="rbar-top"><b id="rbar-n"></b><span class="rbar-btns"><button class="ghost" type="button" id="open-all">すべて開く</button><button class="ghost" type="button" id="close-all">すべて閉じる</button></span></div>
+            <nav class="rbar-nav" id="rbar-nav" aria-label="論文へ移動"></nav>
+        </div>
+        <div id="papers"></div>
     </section>
 
     <section class="collect" id="collect" hidden aria-labelledby="collect-h">
@@ -308,10 +345,13 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         </div>
     </section>
 
-    <section id="result" hidden aria-label="解析結果">
-        <div class="meta" id="meta"></div>
-        <div class="toolbar" id="toolbar" role="group" aria-label="画像・PDFで保存">
-            <span class="tb-label">保存</span>
+    <template id="paper-tpl">
+        <details class="paper" open>
+            <summary class="paper-sum"><span class="pn"></span><span class="pt"></span><span class="pm"></span></summary>
+            <div class="paper-body">
+        <div class="meta" data-r="meta"></div>
+        <div class="toolbar" data-r="toolbar" role="group" aria-label="画像・PDFで保存">
+            <span class="tb-label">保存(プレビューで確認してから)</span>
             <button class="btn sub" type="button" data-exp="overview">概要編</button>
             <button class="btn sub" type="button" data-exp="findings">結果編</button>
             <button class="btn sub" type="button" data-exp="numbers">数値編</button>
@@ -319,39 +359,54 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             <button class="btn" type="button" data-exp="pdf">PDFで保存</button>
             <button class="btn sub" type="button" data-exp="csv" title="本文・図表キャプション・表のセルの数値を、1行1値の形でまとめたCSV">数値CSV</button>
             <button class="btn sub" type="button" data-exp="tablecsv" title="読み取った表を、元の行と列のままCSVにしたもの">表CSV</button>
-            <span class="fine" id="exp-msg" role="status" style="margin:0"></span>
+            <span class="fine" data-r="exp-msg" role="status" style="margin:0"></span>
         </div>
-        <section class="book" aria-labelledby="b1-h">
-            <div class="book-head"><h2 id="b1-h"><span>概要編</span></h2><p>この研究は、何のために、何をしたか</p></div>
-            <div class="strip" id="strip-overview"></div>
+        <section class="book">
+            <div class="book-head"><h2><span>概要編</span></h2><p>この研究は、何のために、何をしたか</p></div>
+            <div class="strip" data-r="strip-overview"></div>
         </section>
-        <section class="book" aria-labelledby="b2-h">
-            <div class="book-head"><h2 id="b2-h"><span>結果編</span></h2><p>何が分かって、どこまで言えるか</p></div>
-            <div class="strip" id="strip-findings"></div>
+        <section class="book">
+            <div class="book-head"><h2><span>結果編</span></h2><p>何が分かって、どこまで言えるか</p></div>
+            <div class="strip" data-r="strip-findings"></div>
         </section>
         <p class="fine">イラストは雰囲気を示すイメージで、実際のデータではありません。文は論文の記述から抜き出したもので、意味を保つ保証はありません。重要な点は、必ず「論文のどこ?」で原文を確認してください。</p>
 
-        <section class="book" id="numbers-sec" aria-labelledby="b3-h">
-            <div class="book-head"><h2 id="b3-h"><span>数値編</span></h2><p>実験結果の数字を、本文の言葉のままでまとめる</p></div>
-            <div class="conds" id="conds" aria-label="実験の条件"></div>
-            <p class="flegend" id="facts-legend"></p>
-            <div class="facts" id="facts"></div>
-            <h3 class="subhead" id="tables-head" hidden>表から読み取った数値</h3>
-            <p class="fine" id="tables-note" hidden>表は、PDFの文字の位置から行と列を復元したものです。段組や罫線のない表では、列がずれたり、読み取れなかったりすることがあります。「要確認」の表は特に、元の表と見比べてください。グラフは、選んだ列の数値をそのまま棒にしたものです。</p>
-            <div class="facts tables" id="tables"></div>
-            <p class="fine" id="facts-note"></p>
+        <section class="book" data-r="numbers-sec">
+            <div class="book-head"><h2><span>数値編</span></h2><p>実験結果の数字を、本文の言葉のままでまとめる</p></div>
+            <div class="conds" data-r="conds" aria-label="実験の条件"></div>
+            <p class="flegend" data-r="facts-legend"></p>
+            <div class="facts" data-r="facts"></div>
+            <h3 class="subhead" data-r="tables-head" hidden>表から読み取った数値</h3>
+            <p class="fine" data-r="tables-note" hidden>表は、PDFの文字の位置から行と列を復元したものです。段組や罫線のない表では、列がずれたり、読み取れなかったりすることがあります。「要確認」の表は特に、元の表と見比べてください。グラフは、選んだ列の数値をそのまま棒にしたものです。</p>
+            <div class="facts tables" data-r="tables"></div>
+            <p class="fine" data-r="facts-note"></p>
         </section>
 
-        <section class="related" aria-labelledby="rel-h">
-            <h2 id="rel-h">関連研究</h2>
-            <p class="sub" id="rel-sub"></p>
-            <div class="seg" id="rel-seg" role="group" aria-label="関連研究の種類"></div>
-            <p class="hint" id="rel-hint"></p>
-            <ul class="cards" id="rel-list" aria-live="polite"></ul>
+        <section class="related">
+            <h2>関連研究</h2>
+            <p class="sub" data-r="rel-sub"></p>
+            <div class="seg" data-r="rel-seg" role="group" aria-label="関連研究の種類"></div>
+            <p class="hint" data-r="rel-hint"></p>
+            <ul class="cards" data-r="rel-list" aria-live="polite"></ul>
             <p class="fine">関連研究のデータは <a href="https://openalex.org" target="_blank" rel="noopener">OpenAlex</a> から取得しています。網羅的・最新とは限りません。</p>
         </section>
-    </section>
+            </div>
+        </details>
+    </template>
 </main>
+
+<dialog id="dl-dialog" aria-labelledby="dl-title">
+    <h2 id="dl-title">保存の確認</h2>
+    <p class="dl-lead">内容を確認して、よければ「ダウンロード」を押してください。<b>ここで押すまで、保存されません。</b></p>
+    <div class="dl-preview" id="dl-preview"></div>
+    <label class="dl-name">ファイル名 <input type="text" id="dl-name" autocomplete="off"></label>
+    <p class="dl-meta" id="dl-meta"></p>
+    <p class="dl-note" id="dl-note" hidden></p>
+    <div class="dlg-actions">
+        <button class="btn sub" type="button" id="dl-cancel">やめる</button>
+        <button class="btn" type="button" id="dl-ok">ダウンロード</button>
+    </div>
+</dialog>
 
 <dialog id="ai-dialog">
     <form method="dialog" id="ai-form">
@@ -402,6 +457,8 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         var inter = x.filter(function (w) { return set[w]; }).length;
         return inter / (x.length + y.length - inter);
     }
+
+    var R = function (root, name) { return root.querySelector('[data-r="' + name + '"]'); };
 
     /* ================= theme ================= */
     $('#theme-btn').addEventListener('click', function () {
@@ -1334,8 +1391,8 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
     }
 
     /* ================= rendering ================= */
-    function renderMeta(a, doc, usedAi) {
-        var m = $('#meta'); m.textContent = '';
+    function renderMeta(root, a, usedAi) {
+        var m = R(root, 'meta'); m.textContent = '';
         m.appendChild(el('h2', null, a.title));
         var row = el('div', 'meta-row');
         row.appendChild(el('span', 'badge', a.pages + 'ページ'));
@@ -1359,8 +1416,8 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
     function confLabel(p) {
         return p.conf === 'high' ? (p.ai ? '根拠を照合済み' : '根拠: 高') : p.conf === 'mid' ? (p.ai ? '根拠を確認できません' : '根拠: 推測を含む') : '記述なし';
     }
-    function renderPanels(panels, selector) {
-        var strip = $(selector); strip.textContent = '';
+    function renderPanels(panels, strip) {
+        strip.textContent = '';
         panels.forEach(function (p) {
             var art = el('article', 'panel c' + p.num);
             var h = el('header');
@@ -1478,8 +1535,8 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
     function figChips(f) { return (f.cap ? [f.cap] : []).concat(f.figs || []); }
     function whereOf(f) { return [f.page ? 'p.' + f.page : '', f.section === 'caption' ? '図表キャプション' : (f.section ? '章: ' + (SEC_LABEL[f.section] || f.section) : '')].filter(Boolean).join(' ・ '); }
 
-    function renderTables(tables) {
-        var box = $('#tables'), head = $('#tables-head'), note = $('#tables-note');
+    function renderTables(root, tables) {
+        var box = R(root, 'tables'), head = R(root, 'tables-head'), note = R(root, 'tables-note');
         box.textContent = ''; head.hidden = note.hidden = !tables.length;
         tables.forEach(function (tb) {
             var card = el('article', 'fact tbl wide none'), hd = el('header', 'fh'), kinds = el('div', 'fk');
@@ -1554,8 +1611,8 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             fb.appendChild(right); card.appendChild(fb); box.appendChild(card);
         });
     }
-    function renderNumbers(nums) {
-        var sec = $('#numbers-sec'), conds = $('#conds'), box = $('#facts'), note = $('#facts-note'), legend = $('#facts-legend');
+    function renderNumbers(root, nums, rec) {
+        var sec = R(root, 'numbers-sec'), conds = R(root, 'conds'), box = R(root, 'facts'), note = R(root, 'facts-note'), legend = R(root, 'facts-legend');
         conds.textContent = ''; box.textContent = ''; legend.textContent = '';
         nums.conds.forEach(function (c) {
             var chip = el('span', 'chip'); chip.title = c.sentence;
@@ -1602,13 +1659,13 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             var d = el('details'); d.appendChild(el('summary', null, '原文を見る')); d.appendChild(el('blockquote', null, f.sentence)); card.appendChild(d);
             box.appendChild(card);
         });
-        renderTables(nums.tables || []);
+        renderTables(root, nums.tables || []);
         var anySig = nums.facts.some(function (f) { return f.sig; }), anyPair = nums.facts.some(function (f) { return f.pair || f.series; });
         note.textContent = '本文・図表のキャプション・表のセルから数字を抜き出したものです。図(グラフ)の中の点や軸の数値は読み取れません。数字の意味や条件は、必ず原文で確認してください。' +
             (anyPair ? ' 2つ以上の値が並んで書かれている箇所は、バー図にしています(軸は0から。「差」は本文の数値から計算した参考値です)。差だけが書かれていて元の値がない場合は、バー図にしていません。' : '') +
             (anySig ? ' 「有意」は、偶然でもこのくらいの差が出る確率(p値)が小さい(一般に0.05未満)ときに使われる言葉です。差の大きさや重要さを示すものではありません。' : '');
-        current.hasNums = hasNums(nums);
-        syncExportButtons();
+        rec.hasNums = hasNums(nums);
+        syncExportButtons(rec);
         sec.hidden = false;
     }
 
@@ -1739,39 +1796,42 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         }
         return cv;
     }
-    function saveCanvas(cv, name) {
+    function canvasBlob(cv) {
         return new Promise(function (res, rej) {
-            cv.toBlob(function (b) {
-                if (!b) return rej(new Error('画像を作成できませんでした'));
-                var url = URL.createObjectURL(b), a = document.createElement('a');
-                a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
-                setTimeout(function () { URL.revokeObjectURL(url); }, 4000); res();
-            }, 'image/png');
+            cv.toBlob(function (b) { if (!b) return rej(new Error('画像を作成できませんでした')); res(b); }, 'image/png');
         });
     }
-    async function exportImage(which) {
-        if (!current) return;
-        var title = current.a.title, slug = title.normalize('NFKD').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30), base = '4koma-' + (slug || 'paper');
-        if (which === 'csv') { saveBlob(new Blob([toCsv(numbersCsvRows(current.nums))], { type: 'text/csv;charset=utf-8' }), base + '-numbers.csv'); return; }
-        if (which === 'tablecsv') { saveBlob(new Blob([toCsv(tablesCsvRows(current.nums))], { type: 'text/csv;charset=utf-8' }), base + '-tables.csv'); return; }
+    function baseName(rec) {
+        var slug = rec.a.title.normalize('NFKD').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30);
+        return '4koma-' + (slug || 'paper');
+    }
+    function csvArtifact(rows, name, label) {
+        return { kind: 'csv', name: name, label: label, rows: rows, blob: new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8' }) };
+    }
+    function pdfArtifact(pages, title, name, label) {
+        return { kind: 'pdf', name: name, label: label, pages: pages, blob: buildPdf(pages, title) };
+    }
+    async function makeArtifact(rec, which) {
+        var title = rec.a.title, base = baseName(rec);
+        if (which === 'csv') return csvArtifact(numbersCsvRows(rec.nums), base + '-numbers.csv', '数値CSV(この論文)');
+        if (which === 'tablecsv') return csvArtifact(tablesCsvRows(rec.nums), base + '-tables.csv', '表CSV(この論文)');
         if (document.fonts && document.fonts.ready) await document.fonts.ready;
-        var byId = function (id) { return current.books.filter(function (b) { return b.id === id; })[0]; };
+        var byId = function (id) { return rec.books.filter(function (b) { return b.id === id; })[0]; };
+        if (which === 'pdf') return pdfArtifact(await paperPages(rec), title, base + '.pdf', 'PDF(概要編・結果編・数値編)');
+        var cv, name, label;
         if (which === 'both') {
             var c1 = await drawBook(byId('overview'), title, { showTitle: true, showFooter: false });
             var c2 = await drawBook(byId('findings'), title, { showTitle: false, showFooter: true });
-            var all = document.createElement('canvas'); all.width = EX.W; all.height = c1.height + c2.height;
-            var g = all.getContext('2d'); g.drawImage(c1, 0, 0); g.drawImage(c2, 0, c1.height);
-            await saveCanvas(all, base + '-all8.png');
+            cv = document.createElement('canvas'); cv.width = EX.W; cv.height = c1.height + c2.height;
+            var g = cv.getContext('2d'); g.drawImage(c1, 0, 0); g.drawImage(c2, 0, c1.height);
+            name = base + '-all8.png'; label = '8コマを1枚にした画像';
         } else if (which === 'numbers') {
-            await saveCanvas(await drawNumbers(current.nums, title, { showTitle: true }), base + '-numbers.png');
-        } else if (which === 'pdf') {
-            saveBlob(buildPdf(await paperPages(current), title), base + '.pdf');
+            cv = await drawNumbers(rec.nums, title, { showTitle: true }); name = base + '-numbers.png'; label = '数値編の画像';
         } else {
-            var bk = byId(which);
-            await saveCanvas(await drawBook(bk, title, { showTitle: true, showFooter: true }), base + '-' + which + '.png');
+            cv = await drawBook(byId(which), title, { showTitle: true, showFooter: true }); name = base + '-' + which + '.png'; label = (which === 'overview' ? '概要編' : '結果編') + 'の画像';
         }
+        return { kind: 'png', name: name, label: label, w: cv.width, h: cv.height, blob: await canvasBlob(cv) };
     }
-
 
     function drawPair(c, x, y, w, h, pr) {
         var scale = pairScale(pr), top = y + 74, base = y + h - 66, H = base - top, ax = x + 56, bw = 120;
@@ -2117,14 +2177,14 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         });
         return rows;
     }
-    function exportAvailable(which) {
-        if (!current) return false;
-        if (which === 'numbers' || which === 'csv') return !!current.hasNums;
-        if (which === 'tablecsv') return !!(current.nums && current.nums.tables && current.nums.tables.length);
+    function exportAvailable(rec, which) {
+        if (which === 'numbers' || which === 'csv') return !!rec.hasNums;
+        if (which === 'tablecsv') return !!(rec.nums && rec.nums.tables && rec.nums.tables.length);
         return true;
     }
-    function syncExportButtons() {
-        Array.prototype.forEach.call(document.querySelectorAll('[data-exp]'), function (b) { b.disabled = !exportAvailable(b.dataset.exp); });
+    function syncExportButtons(rec) {
+        if (!rec.root) return;
+        Array.prototype.forEach.call(rec.root.querySelectorAll('[data-exp]'), function (b) { b.disabled = !exportAvailable(rec, b.dataset.exp); });
     }
     async function paperPages(rec) {
         var title = rec.a.title, byId = function (id) { return rec.books.filter(function (b) { return b.id === id; })[0]; };
@@ -2137,16 +2197,71 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
         setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
     }
-    Array.prototype.forEach.call(document.querySelectorAll('[data-exp]'), function (btn) {
-        btn.addEventListener('click', async function () {
-            var msg = $('#exp-msg'), all = document.querySelectorAll('[data-exp]');
-            Array.prototype.forEach.call(all, function (b) { b.disabled = true; });
-            msg.textContent = '画像を作成しています…';
-            try { await exportImage(btn.dataset.exp); msg.textContent = /csv$/i.test(btn.dataset.exp) ? '保存しました。UTF-8(BOM付き)なので、Excelでも開けます。数式として実行されないよう、先頭が「=」「@」などの文字には「\'」を付けています。' : '保存しました。'; }
-            catch (e) { console.error(e); msg.textContent = '保存に失敗しました: ' + e.message; }
-            finally { syncExportButtons(); }
+    /* preview dialog: a file is only saved after the user presses "ダウンロード" here */
+    var dlArt = null, dlUrls = [];
+    function dlCleanup() { dlUrls.forEach(function (u) { URL.revokeObjectURL(u); }); dlUrls = []; $('#dl-preview').textContent = ''; }
+    function sizeText(n) { return n < 1048576 ? Math.max(1, Math.round(n / 1024)) + ' KB' : (n / 1048576).toFixed(1) + ' MB'; }
+    function offerDownload(art, done) {
+        var dlg = $('#dl-dialog'), pv = $('#dl-preview'), note = $('#dl-note');
+        dlCleanup(); dlArt = { art: art, done: done || function () {} };
+        $('#dl-title').textContent = art.label + 'を保存しますか?';
+        $('#dl-name').value = art.name;
+        var size = sizeText(art.blob.size), meta = size;
+        note.hidden = true;
+        if (art.kind === 'png') {
+            var u = URL.createObjectURL(art.blob); dlUrls.push(u);
+            var img = el('img'); img.src = u; img.alt = art.label + 'のプレビュー'; pv.appendChild(img);
+            meta = art.w + '×' + art.h + ' px ・ PNG ・ ' + size;
+        } else if (art.kind === 'pdf') {
+            art.pages.slice(0, 12).forEach(function (pg, i) {
+                var u2 = URL.createObjectURL(new Blob([pg.jpeg], { type: 'image/jpeg' })); dlUrls.push(u2);
+                var fig = el('figure'), im = el('img'); im.src = u2; im.alt = (i + 1) + 'ページ目のプレビュー';
+                fig.appendChild(im); fig.appendChild(el('figcaption', null, (i + 1) + ' ページ目')); pv.appendChild(fig);
+            });
+            if (art.pages.length > 12) pv.appendChild(el('p', 'fine', 'ほか ' + (art.pages.length - 12) + ' ページ(プレビューは、先頭の12ページまでです)'));
+            meta = art.pages.length + ' ページ ・ A4 ・ PDF ・ ' + size;
+        } else {
+            var rows = art.rows, maxC = rows.reduce(function (m, r) { return Math.max(m, r.length); }, 0), shownC = Math.min(maxC, 12);
+            var tbl = el('table'), shown = rows.slice(0, 25);
+            shown.forEach(function (r, ri) {
+                var tr = el('tr');
+                for (var k = 0; k < shownC; k++) tr.appendChild(el(ri === 0 ? 'th' : 'td', null, r[k] == null ? '' : String(r[k])));
+                tbl.appendChild(tr);
+            });
+            pv.appendChild(tbl);
+            if (rows.length > shown.length || maxC > shownC) pv.appendChild(el('p', 'fine', '先頭の' + shown.length + '行・' + shownC + '列だけ表示しています。保存するCSVには、全部が入ります。'));
+            meta = rows.length + ' 行 × ' + maxC + ' 列 ・ CSV(UTF-8・BOM付き) ・ ' + size;
+            note.textContent = 'Excelでそのまま開けます。数式として実行されないよう、先頭が「=」「@」などの文字には「\'」を付けています。';
+            note.hidden = false;
+        }
+        $('#dl-meta').textContent = meta;
+        dlg.showModal();
+    }
+    (function setupDownloadDialog() {
+        var dlg = $('#dl-dialog');
+        $('#dl-ok').addEventListener('click', function () {
+            if (!dlArt) return;
+            var name = ($('#dl-name').value || dlArt.art.name).replace(/[\\/:*?"<>|]+/g, '_').trim() || dlArt.art.name;
+            var ext = dlArt.art.name.slice(dlArt.art.name.lastIndexOf('.'));
+            if (name.slice(-ext.length).toLowerCase() !== ext.toLowerCase()) name += ext;
+            saveBlob(dlArt.art.blob, name);
+            var d = dlArt.done; dlArt = null; dlg.close(); d('保存しました: ' + name);
         });
-    });
+        $('#dl-cancel').addEventListener('click', function () { var d = dlArt && dlArt.done; dlArt = null; dlg.close(); if (d) d('保存はしませんでした。'); });
+        dlg.addEventListener('close', function () { if (dlArt) { var d = dlArt.done; dlArt = null; d('保存はしませんでした。'); } dlCleanup(); });
+    })();
+    function bindToolbar(rec) {
+        var tbar = R(rec.root, 'toolbar'), msg = R(rec.root, 'exp-msg');
+        Array.prototype.forEach.call(tbar.querySelectorAll('[data-exp]'), function (btn) {
+            btn.addEventListener('click', async function () {
+                Array.prototype.forEach.call(tbar.querySelectorAll('[data-exp]'), function (b) { b.disabled = true; });
+                msg.textContent = 'プレビューを作成しています…';
+                try { var art = await makeArtifact(rec, btn.dataset.exp); msg.textContent = ''; offerDownload(art, function (m) { msg.textContent = m; }); }
+                catch (e) { console.error(e); msg.textContent = '作成に失敗しました: ' + e.message; }
+                finally { syncExportButtons(rec); }
+            });
+        });
+    }
 
     /* ================= related research (OpenAlex) ================= */
     var SELECT = 'id,doi,title,publication_year,cited_by_count,authorships,primary_location,referenced_works,related_works';
@@ -2212,8 +2327,8 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         var d = await oa('works?search=' + encodeURIComponent(q) + '&per-page=8&select=' + SELECT);
         return { mode: 'keyword', query: q, groups: [{ id: 'kw', label: 'キーワード検索', hint: '「' + q + '」で見つかった研究', items: d.results || [] }] };
     }
-    function renderRelated(rel, a) {
-        var seg = $('#rel-seg'), list = $('#rel-list'), hint = $('#rel-hint'), sub = $('#rel-sub');
+    function renderRelated(root, rel, a) {
+        var seg = R(root, 'rel-seg'), list = R(root, 'rel-list'), hint = R(root, 'rel-hint'), sub = R(root, 'rel-sub');
         seg.textContent = ''; list.textContent = ''; hint.textContent = '';
         if (rel.mode === 'matched') sub.textContent = 'OpenAlex 上でこの論文を特定できました(' + (rel.matched.title || '') + ')。';
         else if (rel.mode === 'keyword') sub.textContent = 'この論文自体を特定できなかったため、キーワードで近い研究を探しました。' + (a.lang === 'ja' ? '日本語の論文は、ヒットが少ないことがあります。' : '');
@@ -2247,12 +2362,11 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
     }
 
     /* ================= pipeline ================= */
-    var running = false, current = null;
-    async function run(source, opts) {
-        opts = opts || {};
-        if (running) return false;
-        running = true; resetSteps(); $('#result').hidden = true;
-        var ok = false;
+    var running = false;
+    async function run(source) {
+        if (running) return null;
+        running = true; resetSteps();
+        var rec = null;
         try {
             setStep(0, 'run');
             var doc = source.pages ? source : await readPdf(source);
@@ -2267,86 +2381,102 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
                 try { setStep(1, 'run', 'AIでやさしく書き直し中'); await aiRewrite(a, flat, nums); usedAi = true; }
                 catch (e) { showAlert('AIでの書き直しに失敗したため、ローカル抽出の結果を表示します。(' + e.message + ')'); }
             }
-            var rec = { fileName: doc.fileName || '', title: a.title, pages: a.pages, nums: nums, a: a, books: books, usedAi: usedAi, rel: undefined };
-            current = { a: a, books: books, nums: nums, rec: rec }; activeRec = rec;
-            collectAdd(rec);
-            renderMeta(a, doc, usedAi); books.forEach(function (b) { renderPanels(b.panels, b.el); }); renderNumbers(nums);
-            $('#result').hidden = false;
+            rec = { fileName: doc.fileName || '', title: a.title, pages: a.pages, nums: nums, a: a, books: books, usedAi: usedAi, rel: undefined, root: null, hasNums: false };
+            addPaper(rec);
             setStep(1, 'done', usedAi ? 'AIで書き直し' : '2本(8コマ)を作成');
-            $('#strip-overview').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
-
-            if (opts.skipRelated) {
-                $('#rel-seg').textContent = ''; $('#rel-list').textContent = ''; $('#rel-hint').textContent = '';
-                $('#rel-sub').textContent = '複数の論文をまとめて処理しているため、この論文の関連研究は、まだ検索していません。(集計の一覧で「表示」を押すと検索します)';
-                setStep(2, 'skip', 'まとめ処理のため省略');
-            } else {
-                setStep(2, 'run');
-                $('#rel-seg').textContent = ''; $('#rel-list').textContent = ''; $('#rel-hint').textContent = ''; $('#rel-sub').textContent = '探しています…';
-                try {
-                    var rel = await loadRelated(a);
-                    rec.rel = rel;
-                    if (activeRec === rec) renderRelated(rel, a);
-                    setStep(2, rel.mode === 'none' ? 'skip' : 'done', rel.mode === 'matched' ? '論文を特定して取得' : rel.mode === 'keyword' ? 'キーワードで検索' : '対象なし');
-                } catch (e) {
-                    $('#rel-sub').textContent = '関連研究を取得できませんでした(' + e.message + ')。4コマの結果はそのまま使えます。';
-                    setStep(2, 'err', '取得できませんでした');
-                }
-            }
-            ok = true;
+            setStep(2, 'skip', '全部の解析が終わってから検索');
         } catch (e) {
             console.error(e);
+            rec = null;
             var active = stepEls.findIndex(function (li) { return li.dataset.s === 'run'; });
             if (active >= 0) setStep(active, 'err');
             showAlert(e.message || 'PDFの解析に失敗しました。');
         } finally { running = false; }
-        return ok;
+        return rec;
     }
-
-
-    /* ================= collection of several papers ================= */
-    var collection = [], activeRec = null;
-    function showPaper(rec) {
-        activeRec = rec;
-        current = { a: rec.a, books: rec.books, nums: rec.nums, rec: rec };
-        renderMeta(rec.a, null, rec.usedAi);
-        rec.books.forEach(function (b) { renderPanels(b.panels, b.el); });
-        renderNumbers(rec.nums);
-        $('#result').hidden = false;
-        renderCollect();
-        if (rec.rel) renderRelated(rec.rel, rec.a); else loadRelatedFor(rec);
-        $('#meta').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    async function relatedQueue(recs) {
+        if (!recs.length) return;
+        setStep(2, 'run', '関連研究を検索中(' + recs.length + '件)');
+        var okN = 0;
+        for (var i = 0; i < recs.length; i++) { await loadRelatedFor(recs[i]); if (recs[i].rel) okN++; }
+        setStep(2, okN ? 'done' : 'err', okN ? okN + '件の論文で検索しました' : '取得できませんでした');
     }
     async function loadRelatedFor(rec) {
-        $('#rel-seg').textContent = ''; $('#rel-list').textContent = ''; $('#rel-hint').textContent = ''; $('#rel-sub').textContent = '探しています…';
+        var root = rec.root;
+        if (!root || rec.relLoading) return;
+        rec.relLoading = true;
+        R(root, 'rel-seg').textContent = ''; R(root, 'rel-list').textContent = ''; R(root, 'rel-hint').textContent = ''; R(root, 'rel-sub').textContent = '探しています…';
         try {
             var rel = await loadRelated(rec.a);
             rec.rel = rel;
-            if (activeRec === rec) renderRelated(rel, rec.a);
+            if (rec.root === root && root.isConnected) renderRelated(root, rel, rec.a);
         } catch (e) {
-            if (activeRec === rec) $('#rel-sub').textContent = '関連研究を取得できませんでした(' + e.message + ')。4コマの結果はそのまま使えます。';
-        }
+            if (root.isConnected) R(root, 'rel-sub').textContent = '関連研究を取得できませんでした(' + e.message + ')。4コマの結果はそのまま使えます。';
+        } finally { rec.relLoading = false; }
     }
+
+    /* ================= every paper is shown as its own block ================= */
+    var collection = [];
     var collectKey = function (r) { return r.fileName + '|' + r.title; };
-    function collectAdd(rec) {
-        if (rec.fileName === 'sample.pdf') return;
-        var i = collection.map(collectKey).indexOf(collectKey(rec));
-        if (i >= 0) collection[i] = rec; else collection.push(rec);
+    var smooth = function () { return matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'; };
+    function mountPaper(rec, oldRoot) {
+        var root = $('#paper-tpl').content.firstElementChild.cloneNode(true);
+        rec.root = root;
+        if (oldRoot && oldRoot.parentNode) oldRoot.parentNode.replaceChild(root, oldRoot); else $('#papers').appendChild(root);
+        root.querySelector('.pt').textContent = rec.title;
+        root.querySelector('.pm').textContent = rec.fileName + ' ・ ' + rec.pages + 'ページ';
+        renderMeta(root, rec.a, rec.usedAi);
+        rec.books.forEach(function (b) { renderPanels(b.panels, R(root, 'strip-' + b.id)); });
+        renderNumbers(root, rec.nums, rec);
+        if (rec.rel) renderRelated(root, rec.rel, rec.a);
+        else { R(root, 'rel-sub').textContent = '関連研究は、すべての論文の解析が終わってから検索します。'; }
+        bindToolbar(rec);
+    }
+    function addPaper(rec) {
+        var i = collection.map(collectKey).indexOf(collectKey(rec)), old = i >= 0 ? collection[i] : null;
+        if (old) collection[i] = rec; else collection.push(rec);
+        mountPaper(rec, old && old.root);
+        $('#results').hidden = false;
+        refreshPapers();
+    }
+    function removePaper(rec) {
+        var i = collection.indexOf(rec);
+        if (i >= 0) collection.splice(i, 1);
+        if (rec.root) rec.root.remove();
+        refreshPapers();
+    }
+    function goToPaper(rec) {
+        if (!rec.root) return;
+        rec.root.open = true;
+        rec.root.scrollIntoView({ behavior: smooth(), block: 'start' });
+    }
+    function refreshPapers() {
+        $('#results').hidden = !collection.length;
+        $('#rbar-n').textContent = collection.length + '本の論文';
+        var nav = $('#rbar-nav'); nav.textContent = '';
+        collection.forEach(function (r, i) {
+            r.root.querySelector('.pn').textContent = '論文 ' + (i + 1);
+            var b = el('button', null, (i + 1) + '. ' + r.title); b.type = 'button'; b.title = r.title;
+            b.addEventListener('click', function () { goToPaper(r); });
+            nav.appendChild(b);
+        });
         renderCollect();
     }
+    $('#open-all').addEventListener('click', function () { collection.forEach(function (r) { r.root.open = true; }); });
+    $('#close-all').addEventListener('click', function () { collection.forEach(function (r) { r.root.open = false; }); });
     function renderCollect() {
         var sec = $('#collect'), ul = $('#collect-list');
         sec.hidden = !collection.length;
         $('#collect-n').textContent = collection.length + '件';
         ul.textContent = '';
-        collection.forEach(function (r, i) {
-            var li = el('li', r === activeRec ? 'on' : null), tt = el('span', 't', r.title);
-            if (r === activeRec) tt.appendChild(el('span', 'now', '表示中'));
-            li.appendChild(tt);
+        collection.forEach(function (r) {
+            var li = el('li');
+            li.appendChild(el('span', 't', r.title));
             li.appendChild(el('span', 'm', r.fileName + ' ・ ' + r.pages + 'ページ ・ 数値 ' + r.nums.facts.length + '件 ・ 表 ' + (r.nums.tables || []).length + '件 ・ 条件 ' + r.nums.conds.length + '件'));
-            var cb = el('div', 'cb'), sh = el('button', 'show', '表示'); sh.type = 'button'; sh.setAttribute('aria-label', r.title + ' の4コマと数値を表示する');
-            sh.addEventListener('click', function () { showPaper(r); });
+            var cb = el('div', 'cb'), sh = el('button', 'show', '移動'); sh.type = 'button'; sh.setAttribute('aria-label', r.title + ' の4コマへ移動する');
+            sh.addEventListener('click', function () { goToPaper(r); });
             var rm = el('button', null, '削除'); rm.type = 'button'; rm.setAttribute('aria-label', r.title + ' を一覧から削除');
-            rm.addEventListener('click', function () { if (activeRec === r) activeRec = null; collection.splice(i, 1); renderCollect(); });
+            rm.addEventListener('click', function () { removePaper(r); });
             cb.appendChild(sh); cb.appendChild(rm); li.appendChild(cb); ul.appendChild(li);
         });
         var anyNum = collection.some(function (r) { return hasNums(r.nums); }), anyTab = collection.some(function (r) { return (r.nums.tables || []).length; });
@@ -2489,7 +2619,7 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         });
         return rows;
     }
-    async function exportAllPdf(msg) {
+    async function allPapersPdf(msg) {
         if (document.fonts && document.fonts.ready) await document.fonts.ready;
         var pages = [];
         for (var i = 0; i < collection.length; i++) {
@@ -2497,27 +2627,37 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             await new Promise(function (r) { setTimeout(r, 0); });
             pages = pages.concat(await paperPages(collection[i]));
         }
-        saveBlob(buildPdf(pages, '4コマ論文 まとめ(' + collection.length + '件)'), '4koma-collection-all.pdf');
-        msg.textContent = collection.length + '件の論文(' + pages.length + 'ページ)を、1つのPDFにしました。';
+        return pdfArtifact(pages, '4コマ論文 まとめ(' + collection.length + '件)', '4koma-collection-all.pdf', '全論文の4コマ(PDF・' + collection.length + '件)');
     }
     Array.prototype.forEach.call(document.querySelectorAll('[data-col]'), function (btn) {
         btn.addEventListener('click', async function () {
             var which = btn.dataset.col, msg = $('#collect-msg');
-            if (which === 'pdfall') {
-                btn.disabled = true;
-                try { await exportAllPdf(msg); } catch (e) { console.error(e); msg.textContent = '保存に失敗しました: ' + e.message; } finally { btn.disabled = false; }
-                return;
+            if (which === 'clear') {
+                if (!collection.length) return;
+                if (!window.confirm(collection.length + '件の論文の結果を、すべて画面から消します。よろしいですか?(保存したファイルには影響しません)')) return;
+                collection.slice().forEach(function (r) { if (r.root) r.root.remove(); }); collection = []; refreshPapers(); return;
             }
-            if (which === 'clear') { collection = []; activeRec = null; renderCollect(); return; }
-            var rows = which === 'csv' ? collectNumbersRows() : which === 'mxcsv' ? matrixCsvRows() : collectTablesRows();
-            saveBlob(new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8' }), '4koma-collection-' + (which === 'csv' ? 'numbers' : which === 'mxcsv' ? 'matrix' : 'tables') + '.csv');
-            msg.textContent = collection.length + '件の論文をまとめて保存しました。';
+            btn.disabled = true; msg.textContent = 'プレビューを作成しています…';
+            try {
+                var art = which === 'pdfall' ? await allPapersPdf(msg)
+                    : which === 'csv' ? csvArtifact(collectNumbersRows(), '4koma-collection-numbers.csv', '数値CSV(全論文・' + collection.length + '件)')
+                    : which === 'mxcsv' ? csvArtifact(matrixCsvRows(), '4koma-collection-matrix.csv', '論文×項目の一覧表CSV')
+                    : csvArtifact(collectTablesRows(), '4koma-collection-tables.csv', '表CSV(全論文・' + collection.length + '件)');
+                msg.textContent = '';
+                offerDownload(art, function (m) { msg.textContent = m; });
+            } catch (e) { console.error(e); msg.textContent = '作成に失敗しました: ' + e.message; }
+            finally { btn.disabled = false; renderCollectButtons(); }
         });
     });
+    function renderCollectButtons() {
+        var anyNum = collection.some(function (r) { return hasNums(r.nums); }), anyTab = collection.some(function (r) { return (r.nums.tables || []).length; });
+        $('[data-col="csv"]').disabled = !anyNum; $('[data-col="tablecsv"]').disabled = !anyTab;
+    }
 
     /* ================= input handlers ================= */
     var drop = $('#drop'), input = $('#file');
     var MAX_FILES = 30, MAX_BYTES = 60 * 1024 * 1024;
+    function scrollToFirst(recs) { if (recs.length) recs[0].root.scrollIntoView({ behavior: smooth(), block: 'start' }); }
     async function handleFiles(list) {
         if (running) { showAlert('解析中です。終わってからもう一度お試しください。'); return; }
         var files = Array.prototype.slice.call(list || []), skipped = [];
@@ -2527,17 +2667,18 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             return true;
         });
         if (pdfs.length > MAX_FILES) { skipped.push((MAX_FILES + 1) + '件目以降(一度に' + MAX_FILES + '件まで)'); pdfs = pdfs.slice(0, MAX_FILES); }
-        var msg = $('#batch-msg'), failed = [];
+        var msg = $('#batch-msg'), failed = [], made = [];
         msg.textContent = '';
         for (var i = 0; i < pdfs.length; i++) {
             if (pdfs.length > 1) msg.textContent = (i + 1) + ' / ' + pdfs.length + ' 件目を解析中: ' + pdfs[i].name;
-            var ok = await run(pdfs[i], { skipRelated: i < pdfs.length - 1 });
-            if (!ok) failed.push(pdfs[i].name + '(解析に失敗)');
+            var rec = await run(pdfs[i]);
+            if (rec) { made.push(rec); if (i === 0 || pdfs.length === 1) scrollToFirst([rec]); } else failed.push(pdfs[i].name + '(解析に失敗)');
         }
-        if (pdfs.length > 1) msg.textContent = (pdfs.length - failed.length) + '件を集計に追加しました。画面には、最後の論文を表示しています。';
+        if (pdfs.length > 1) msg.textContent = made.length + '本の論文の4コマを作りました。下に、論文ごとに並べています。';
         var problems = skipped.concat(pdfs.length > 1 ? failed : []);
         if (!pdfs.length) showAlert(skipped.length ? 'PDFファイルを選んでください。(' + skipped.join('、') + ')' : '');
         else if (problems.length) showAlert('次のファイルは処理できませんでした: ' + problems.join('、'));
+        await relatedQueue(made);
     }
     input.addEventListener('change', function () { var fs = Array.prototype.slice.call(input.files); input.value = ''; handleFiles(fs); });
     ['dragenter', 'dragover'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
@@ -2578,8 +2719,9 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         rows.forEach(function (r, ri) { r.forEach(function (t, ci) { out.push({ s: t, x: xs[ci], y: 700 - ri * 20, w: t.length * (ci ? 6 : 10), h: 10 }); }); });
         return out;
     })()];
-    $('#sample-btn').addEventListener('click', function () {
-        run({ pages: SAMPLE, raw: SAMPLE_RAW, info: { Title: '朝の光が高校生の睡眠に与える影響(デモ用・架空の論文)' }, fileName: 'sample.pdf' });
+    $('#sample-btn').addEventListener('click', async function () {
+        var rec = await run({ pages: SAMPLE, raw: SAMPLE_RAW, info: { Title: '朝の光が高校生の睡眠に与える影響(デモ用・架空の論文)' }, fileName: 'sample.pdf' });
+        if (rec) { scrollToFirst([rec]); await relatedQueue([rec]); }
     });
 })();
 </script>
