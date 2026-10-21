@@ -141,6 +141,9 @@ h1 { font-size: clamp(1.7rem, 5vw, 2.6rem); line-height: 1.3; }
 .tbl th:first-child, .tbl td:first-child { text-align: left; font-weight: 700; }
 .tbl th { background: var(--surface-2); position: sticky; top: 0; }
 .tbl .sel { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); }
+.tbl .tctl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: .85rem; margin-bottom: 8px; }
+.tbl .tctl select { font: inherit; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); max-width: 100%; }
+.tbl .sel2 { background: color-mix(in srgb, #2b8a3e 16%, var(--surface)); }
 .tbl .tsel { display: flex; align-items: center; gap: 8px; font-size: .85rem; margin-bottom: 8px; }
 .tbl .tsel select { font: inherit; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); max-width: 100%; }
 .tbl .conf-ok, .tbl .conf-low { font-size: .75rem; font-weight: 700; padding: 1px 10px; border-radius: 6px; border: 1px solid; }
@@ -1035,6 +1038,75 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         }
         return null;
     }
+
+    var PRE_RE = /前|baseline|\bpre\b|pre-|before|開始|初回|ベースライン|initial|\bT1\b/i, POST_RE = /後|follow|\bpost\b|post-|after|終了|最終|追跡|final|\bT2\b/i;
+    function numericCols(tb) {
+        var out = [];
+        for (var k = 1; k < tb.header.length; k++) if (tb.rows.filter(function (r) { return parseCell(r[k]); }).length >= 2) out.push(k);
+        return out;
+    }
+    function defaultPair(tb) {
+        var cols = numericCols(tb), pre = null, post = null;
+        cols.forEach(function (k) {
+            var h = tb.header[k] || '';
+            if (pre == null && PRE_RE.test(h) && !POST_RE.test(h)) pre = k;
+            else if (post == null && POST_RE.test(h) && !PRE_RE.test(h)) post = k;
+        });
+        return (pre != null && post != null) ? [pre, post] : null;
+    }
+    function tableGrouped(tb, ca, cb) {
+        var ua = tableUnitOf(tb, ca), ub = tableUnitOf(tb, cb), unit = ua || ub, rows = [];
+        if (ca === cb || (ua && ub && norm(ua) !== norm(ub))) return null;
+        tb.rows.slice(0, 8).forEach(function (r) {
+            var a = parseCell(r[ca]), b = parseCell(r[cb]);
+            if (!a || !b) return;
+            var d = b.num - a.num, dec = Math.max(decimals(a.numText), decimals(b.numText));
+            rows.push({ label: (r[0] || '').slice(0, 14) || ('行' + (rows.length + 1)), a: a, b: b, diff: (d > 0 ? '+' : d < 0 ? '−' : '') + Math.abs(d).toFixed(dec) });
+        });
+        if (!rows.length || rows.some(function (r) { return r.a.num < 0 || r.b.num < 0; })) return null;
+        return { rows: rows, aLabel: tb.header[ca] || '列A', bLabel: tb.header[cb] || '列B', unit: unit, pct: /^(?:%|％|パーセント|percent)/i.test(unit) };
+    }
+    function groupedScale(gr) {
+        var mx = 0; gr.rows.forEach(function (r) { mx = Math.max(mx, r.a.num, r.b.num); });
+        return (gr.pct && mx <= 100) ? 100 : niceMax((mx || 1) * 1.1);
+    }
+    function groupedVal(gr, v) { return v.numText + (gr.pct ? '%' : ''); }
+    function groupedNote(gr) { return '軸は0から ・ 差は「' + gr.bLabel + '」−「' + gr.aLabel + '」(表の数値から計算)' + (gr.unit && !gr.pct ? ' ・ 単位: ' + gr.unit : ''); }
+    function groupedSvg(gr) {
+        var NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg'), n = gr.rows.length, scale = groupedScale(gr);
+        var left = 44, right = 332, base = 150, H = 90, slot = (right - left) / n, pw = Math.min(slot * 0.88, 96), bw = (pw - 3) / 2;
+        svg.setAttribute('viewBox', '0 0 340 232'); svg.setAttribute('role', 'img');
+        svg.setAttribute('aria-label', '2列の比較のバー図: ' + gr.aLabel + 'と' + gr.bLabel + '。' + gr.rows.map(function (r) { return r.label + ' ' + r.a.numText + 'から' + r.b.numText + '、差 ' + r.diff; }).join('、'));
+        function add(tag, attrs, text) {
+            var e = document.createElementNS(NS, tag);
+            Object.keys(attrs).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+            if (text != null) e.textContent = text;
+            svg.appendChild(e); return e;
+        }
+        add('rect', { x: left, y: 4, width: 11, height: 11, class: 'ba' });
+        add('text', { x: left + 16, y: 14, 'font-size': 11 }, gr.aLabel.slice(0, 12));
+        var lx = left + 16 + Math.min(gr.aLabel.length, 12) * 7 + 18;
+        add('rect', { x: lx, y: 4, width: 11, height: 11, class: 'bb' });
+        add('text', { x: lx + 16, y: 14, 'font-size': 11 }, gr.bLabel.slice(0, 12));
+        add('line', { x1: left, y1: base - H, x2: right, y2: base - H, class: 'grid' });
+        add('line', { x1: left, y1: base, x2: right, y2: base, class: 'axis' });
+        add('line', { x1: left, y1: base - H, x2: left, y2: base, class: 'axis' });
+        add('text', { x: left - 4, y: base + 4, 'text-anchor': 'end', 'font-size': 10, class: 'mut' }, '0');
+        add('text', { x: left - 4, y: base - H + 4, 'text-anchor': 'end', 'font-size': 10, class: 'mut' }, String(scale) + (gr.pct ? '%' : ''));
+        gr.rows.forEach(function (r, k) {
+            var x0 = left + slot * k + (slot - pw) / 2;
+            [[r.a, 'ba', 0], [r.b, 'bb', 1]].forEach(function (b) {
+                var h = Math.max(2, b[0].num / scale * H), bx = x0 + b[2] * (bw + 3), txt = groupedVal(gr, b[0]), em = 0;
+                txt.split('').forEach(function (ch) { em += 0.62; });
+                add('rect', { x: bx, y: base - h, width: bw, height: h, class: b[1] });
+                add('text', { x: bx + bw / 2, y: base - h - 4, 'text-anchor': 'middle', 'font-size': Math.max(7, Math.min(12, Math.floor((bw + 10) / em))), 'font-weight': 800 }, txt);
+            });
+            labelLines(r.label, n > 4 ? 6 : 9).forEach(function (ln, q) { add('text', { x: x0 + pw / 2, y: base + 14 + q * 11, 'text-anchor': 'middle', 'font-size': n > 4 ? 9 : 11 }, ln); });
+            add('text', { x: x0 + pw / 2, y: base + 40, 'text-anchor': 'middle', 'font-size': 10, class: 'dl' }, '差 ' + r.diff);
+        });
+        add('text', { x: 190, y: 226, 'text-anchor': 'middle', 'font-size': 8, class: 'mut' }, groupedNote(gr));
+        return svg;
+    }
     function tableChart(tb, col) {
         var items = [];
         tb.rows.slice(0, 8).forEach(function (r) {
@@ -1306,23 +1378,36 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             table.appendChild(tbody); wrap.appendChild(table); left.appendChild(wrap);
             if (tb.rows.length > shown.length) left.appendChild(el('p', 'tmore', 'ほか ' + (tb.rows.length - shown.length) + ' 行は省略しています。'));
             fb.appendChild(left);
-            var right = el('div', 'fmain'), numCols = [];
-            for (var k = 1; k < tb.header.length; k++) if (tb.rows.filter(function (r) { return parseCell(r[k]); }).length >= 2) numCols.push(k);
-            var chartBox = el('div', 'pair');
-            function setCol(col) {
-                Array.prototype.forEach.call(table.querySelectorAll('th, td'), function (cell) { cell.classList.toggle('sel', cell.cellIndex === col); });
+            var right = el('div', 'fmain'), numCols = numericCols(tb), chartBox = el('div', 'pair');
+            function view() {
+                var m = mode.value, ca = +selA.value, cb = +selB.value;
+                lblB.hidden = m !== 'p';
+                lblA.firstChild.nodeValue = m === 'p' ? '比べる列 ' : 'グラフにする列 ';
+                Array.prototype.forEach.call(table.querySelectorAll('th, td'), function (cell) {
+                    cell.classList.toggle('sel', cell.cellIndex === ca);
+                    cell.classList.toggle('sel2', m === 'p' && cell.cellIndex === cb);
+                });
                 chartBox.textContent = '';
-                var ch = tableChart(tb, col);
-                if (ch) chartBox.appendChild(ch.items ? seriesSvg(ch) : pairSvg(ch));
-                else chartBox.appendChild(el('p', 'tmore', 'この列は、負の値や数値でないセルを含むため、グラフにしていません。'));
+                var ch = m === 'p' ? tableGrouped(tb, ca, cb) : tableChart(tb, ca);
+                if (!ch) chartBox.appendChild(el('p', 'tmore', m === 'p' ? '選んだ2列は、負の値や数値でないセル、単位の違いを含むため、グラフにしていません。' : 'この列は、負の値や数値でないセルを含むため、グラフにしていません。'));
+                else chartBox.appendChild(ch.rows ? groupedSvg(ch) : ch.items ? seriesSvg(ch) : pairSvg(ch));
             }
+            var ctl = el('div', 'tctl'), mode = el('select'), lblA = el('label'), selA = el('select'), lblB = el('label'), selB = el('select');
             if (numCols.length) {
-                var sel = el('label', 'tsel'); sel.appendChild(document.createTextNode('グラフにする列'));
-                var dd = el('select'); dd.setAttribute('aria-label', 'グラフにする列');
-                numCols.forEach(function (k) { var o = el('option', null, tb.header[k] || ('列' + (k + 1))); o.value = String(k); dd.appendChild(o); });
-                var dc = defaultCol(tb); if (dc != null) dd.value = String(dc);
-                dd.addEventListener('change', function () { setCol(+dd.value); });
-                sel.appendChild(dd); right.appendChild(sel); right.appendChild(chartBox); setCol(+dd.value);
+                mode.setAttribute('aria-label', 'グラフの種類');
+                [['s', '1列を棒グラフにする'], ['p', '2列を並べて比べる(前後比較)']].slice(0, numCols.length >= 2 ? 2 : 1).forEach(function (o) { var op = el('option', null, o[1]); op.value = o[0]; mode.appendChild(op); });
+                selA.setAttribute('aria-label', '1つ目の列'); selB.setAttribute('aria-label', '2つ目の列');
+                numCols.forEach(function (k) {
+                    [selA, selB].forEach(function (sl) { var o = el('option', null, tb.header[k] || ('列' + (k + 1))); o.value = String(k); sl.appendChild(o); });
+                });
+                lblA.appendChild(document.createTextNode('グラフにする列 ')); lblA.appendChild(selA);
+                lblB.appendChild(document.createTextNode('と ')); lblB.appendChild(selB);
+                var dp = defaultPair(tb), dc = defaultCol(tb);
+                if (dp) { mode.value = 'p'; selA.value = String(dp[0]); selB.value = String(dp[1]); }
+                else { mode.value = 's'; if (dc != null) selA.value = String(dc); selB.value = String(numCols[Math.min(1, numCols.length - 1)]); }
+                [mode, selA, selB].forEach(function (sl) { sl.addEventListener('change', view); });
+                ctl.appendChild(mode); ctl.appendChild(lblA); ctl.appendChild(lblB);
+                right.appendChild(ctl); right.appendChild(chartBox); view();
             } else right.appendChild(el('p', 'tmore', '数値の列が見つからなかったため、グラフはありません。'));
             fb.appendChild(right); card.appendChild(fb); box.appendChild(card);
         });
@@ -1586,6 +1671,34 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         c.textAlign = 'left';
     }
 
+
+    function drawGrouped(c, x, y, w, h, gr) {
+        var n = gr.rows.length, scale = groupedScale(gr), top = y + 92, base = y + h - 96, H = base - top, ax = x + 56, span = w - 56 - 20, slot = span / n, pw = Math.min(slot * 0.88, 150), bw = (pw - 6) / 2;
+        c.fillStyle = '#f3efe3'; rrect(c, x, y, w, h, 10); c.fill();
+        c.textAlign = 'left'; c.font = '800 20px ' + FONT;
+        c.fillStyle = '#d0ebff'; c.fillRect(x + 20, y + 14, 20, 20); c.strokeStyle = EX.ink; c.lineWidth = 3; c.strokeRect(x + 20, y + 14, 20, 20);
+        c.fillStyle = EX.ink; var an = clip(c, gr.aLabel, 200); c.fillText(an, x + 48, y + 32);
+        var lx = x + 48 + c.measureText(an).width + 34;
+        c.fillStyle = '#3b5bdb'; c.fillRect(lx, y + 14, 20, 20); c.strokeRect(lx, y + 14, 20, 20);
+        c.fillStyle = EX.ink; c.fillText(clip(c, gr.bLabel, 200), lx + 28, y + 32);
+        c.strokeStyle = '#a9a39a'; c.lineWidth = 2; c.setLineDash([6, 6]); c.beginPath(); c.moveTo(ax, top); c.lineTo(x + w - 20, top); c.stroke(); c.setLineDash([]);
+        c.beginPath(); c.moveTo(ax, top); c.lineTo(ax, base); c.lineTo(x + w - 20, base); c.stroke();
+        c.fillStyle = EX.muted; c.font = '20px ' + FONT; c.textAlign = 'right'; c.fillText('0', ax - 8, base + 6); c.fillText(String(scale) + (gr.pct ? '%' : ''), ax - 8, top + 6);
+        gr.rows.forEach(function (r, k) {
+            var x0 = ax + slot * k + (slot - pw) / 2;
+            [[r.a, '#d0ebff', 0], [r.b, '#3b5bdb', 1]].forEach(function (b) {
+                var bh = Math.max(3, b[0].num / scale * H), bx = x0 + b[2] * (bw + 6), txt = groupedVal(gr, b[0]), fs = 24;
+                c.fillStyle = b[1]; c.fillRect(bx, base - bh, bw, bh); c.strokeStyle = EX.ink; c.lineWidth = 4; c.strokeRect(bx, base - bh, bw, bh);
+                c.fillStyle = EX.ink; c.textAlign = 'center'; c.font = '800 ' + fs + 'px ' + FONT;
+                while (fs > 12 && c.measureText(txt).width > bw + 24) { fs -= 2; c.font = '800 ' + fs + 'px ' + FONT; }
+                c.fillText(txt, bx + bw / 2, base - bh - 8);
+            });
+            c.fillStyle = EX.ink; c.textAlign = 'center'; c.font = '22px ' + FONT; c.fillText(clip(c, r.label, slot - 6), x0 + pw / 2, base + 30);
+            c.fillStyle = '#3b5bdb'; c.font = '800 22px ' + FONT; c.fillText('差 ' + r.diff, x0 + pw / 2, base + 60);
+        });
+        c.fillStyle = EX.muted; c.font = '17px ' + FONT; c.fillText(clip(c, groupedNote(gr), w - 16), x + w / 2, y + h - 12);
+        c.textAlign = 'left';
+    }
     var TW_MAX = 760, CH_W2 = 660;
     function layoutTable(tb) {
         var sc = document.createElement('canvas').getContext('2d'), cols = Math.min(tb.header.length, 6), rows = tb.rows.slice(0, 10), PAD = 22, HEADH = 56;
@@ -1600,7 +1713,7 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         var capLines = tb.caption ? wrapText(sc, tb.caption, TW_MAX).slice(0, 2) : [];
         var tableH = 44 + rows.length * 40 + ((tb.rows.length > rows.length || tb.header.length > cols) ? 32 : 0);
         var leftH = capLines.length * 30 + (capLines.length ? 10 : 0) + tableH;
-        return { tb: tb, cols: cols, rows: rows, colW: colW, capLines: capLines, tableH: tableH, h: HEADH + PAD + Math.max(leftH, 330) + 16, col: defaultCol(tb) };
+        return { tb: tb, cols: cols, rows: rows, colW: colW, capLines: capLines, tableH: tableH, h: HEADH + PAD + Math.max(leftH, defaultPair(tb) ? 372 : 330) + 16, col: defaultCol(tb), pairCols: defaultPair(tb) };
     }
     function drawTableCard(c, x, y, w, L) {
         var tb = L.tb, PAD = 22, HEADH = 56;
@@ -1627,7 +1740,8 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             var ry = ty + (r < 0 ? 0 : 44 + r * 40), rh = r < 0 ? 44 : 40, cells = r < 0 ? tb.header : L.rows[r];
             if (r < 0) { c.fillStyle = '#efeadb'; c.fillRect(tx, ry, gx[L.cols] - tx, rh); }
             for (var k = 0; k < L.cols; k++) {
-                if (k === L.col) { c.fillStyle = '#e4ebff'; c.fillRect(gx[k], ry, L.colW[k], rh); }
+                if (L.pairCols ? k === L.pairCols[0] : k === L.col) { c.fillStyle = '#e4ebff'; c.fillRect(gx[k], ry, L.colW[k], rh); }
+                else if (L.pairCols && k === L.pairCols[1]) { c.fillStyle = '#e3f5e6'; c.fillRect(gx[k], ry, L.colW[k], rh); }
                 var txt = clip(c, cells[k] || '', L.colW[k] - 16), num = k > 0 && isNumCell(cells[k] || '');
                 c.fillStyle = EX.ink; c.font = (r < 0 || k === 0 ? '800 ' : '') + '22px ' + FONT;
                 if (num || r < 0 && k > 0) { c.textAlign = 'right'; c.fillText(txt, gx[k] + L.colW[k] - 8, ry + 28); c.textAlign = 'left'; } else c.fillText(txt, gx[k] + 8, ry + 28);
@@ -1635,8 +1749,10 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             c.fillStyle = EX.line; c.fillRect(tx, ry + rh - 2, gx[L.cols] - tx, 2);
         }
         if (tb.rows.length > L.rows.length || tb.header.length > L.cols) { c.fillStyle = EX.muted; c.font = '20px ' + FONT; c.fillText('※ 一部の行・列を省略しています', tx, ty + L.tableH - 8); }
-        var ch = L.col != null ? tableChart(tb, L.col) : null;
-        if (ch) { var cx = x + w - PAD - CH_W2, cy = y + HEADH + PAD; if (ch.items) drawSeries(c, cx, cy, CH_W2, 310, ch); else drawPair(c, cx, cy, CH_W2, 310, ch); c.fillStyle = EX.muted; c.font = '20px ' + FONT; c.fillText('グラフにした列: ' + (tb.header[L.col] || ''), cx, cy + 334); }
+        var gr = L.pairCols ? tableGrouped(tb, L.pairCols[0], L.pairCols[1]) : null;
+        var ch = gr ? null : (L.col != null ? tableChart(tb, L.col) : null), cx = x + w - PAD - CH_W2, cy = y + HEADH + PAD;
+        if (gr) { drawGrouped(c, cx, cy, CH_W2, 330, gr); c.fillStyle = EX.muted; c.font = '20px ' + FONT; c.textAlign = 'left'; c.fillText('並べた列: ' + (tb.header[L.pairCols[0]] || '') + ' と ' + (tb.header[L.pairCols[1]] || ''), cx, cy + 356); }
+        else if (ch) { if (ch.items) drawSeries(c, cx, cy, CH_W2, 310, ch); else drawPair(c, cx, cy, CH_W2, 310, ch); c.fillStyle = EX.muted; c.font = '20px ' + FONT; c.fillText('グラフにした列: ' + (tb.header[L.col] || ''), cx, cy + 334); }
     }
     async function drawNumbers(nums, title, opt) {
         var W = EX.W, M = EX.M, FW = W - M * 2, CWn = EX.PW, meta = BOOK_META.numbers, sc = document.createElement('canvas').getContext('2d');
