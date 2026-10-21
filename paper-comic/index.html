@@ -106,6 +106,25 @@ h1 { font-size: clamp(1.7rem, 5vw, 2.6rem); line-height: 1.3; }
 .collect { margin-top: 28px; padding: 18px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
 .collect h2 { font-size: 1.15rem; }
 .collect h2 small { font-weight: 400; color: var(--muted); font-size: .85rem; margin-left: 6px; }
+.mx-sec { margin-top: 22px; padding-top: 6px; border-top: 1px solid var(--line); }
+.mxctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 10px 0; font-size: .88rem; }
+.mxctl input[type=search] { font: inherit; padding: 3px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); width: 14em; max-width: 100%; }
+.mxctl .chk { display: inline-flex; align-items: center; gap: 6px; }
+.mxctl .chk input, .mxkinds input { width: 16px; height: 16px; accent-color: var(--accent); }
+.mxkinds { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; }
+.mxkinds label { display: inline-flex; align-items: center; gap: 4px; font-size: .82rem; color: var(--muted); }
+.mxwrap { overflow: auto; max-height: 520px; border: 1px solid var(--line); border-radius: 10px; }
+.mx { border-collapse: separate; border-spacing: 0; font-size: .82rem; min-width: 100%; }
+.mx th, .mx td { padding: 5px 10px; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); white-space: nowrap; text-align: right; max-width: 18em; overflow: hidden; text-overflow: ellipsis; }
+.mx thead th { position: sticky; top: 0; background: var(--surface-2); z-index: 2; text-align: center; vertical-align: bottom; }
+.mx th:first-child, .mx td:first-child { position: sticky; left: 0; text-align: left; background: var(--surface); z-index: 1; font-weight: 700; max-width: 16em; }
+.mx thead th:first-child { z-index: 3; background: var(--surface-2); }
+.mx th button { background: none; border: 0; font: inherit; font-weight: 700; color: inherit; cursor: pointer; padding: 0; }
+.mx th small { display: block; font-weight: 400; color: var(--muted); font-size: .72rem; }
+.mx th .kk { display: block; font-weight: 400; font-size: .68rem; color: var(--accent); }
+.mx td.empty { color: var(--line); text-align: center; }
+.mx td.hi { background: color-mix(in srgb, #2b8a3e 18%, var(--surface)); font-weight: 800; }
+.mx td.lo { background: color-mix(in srgb, #c2410c 14%, var(--surface)); }
 .clist { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 8px; }
 .clist li { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; background: var(--surface-2); border-radius: 10px; padding: 8px 12px; }
 .clist .t { font-weight: 700; overflow-wrap: anywhere; }
@@ -224,7 +243,7 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
     .steps { grid-template-columns: 1fr; }
     .drop { padding: 30px 16px; }
 }
-@media print { .top, .drop, .sample, .steps, .seg, .toolbar, .collect { display: none; } body { background: #fff; } }
+@media print { .top, .drop, .sample, .steps, .seg, .toolbar, .collect, .mx-sec { display: none; } body { background: #fff; } }
 </style>
 </head>
 <body>
@@ -262,9 +281,22 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         <h2 id="collect-h">集計した論文 <small id="collect-n"></small></h2>
         <p class="fine">複数のPDFをまとめて選ぶと、順番に解析して、数値をここに貯めます。同じ論文を入れ直すと、置き換わります。この一覧はページを閉じると消えます。</p>
         <ul class="clist" id="collect-list"></ul>
+
+        <div class="mx-sec" id="mx" hidden>
+            <h3 class="subhead">論文×項目の一覧表</h3>
+            <p class="fine">行が論文、列が項目です。項目は、論文をまたいで同じ名前のものをそろえています(実験条件、最初の結果の数値、本文・図表の群や時点の名前、表の「行 / 列」の名前)。名前が少しでも違う項目は、別の列になります。</p>
+            <div class="mxctl">
+                <label class="chk"><input type="checkbox" id="mx-common" checked> 2本以上にある項目だけ</label>
+                <label>項目を絞り込み <input type="search" id="mx-q" placeholder="例: accuracy、睡眠、対照群"></label>
+                <span class="mxkinds" id="mx-kinds" role="group" aria-label="表示する項目の種類"></span>
+            </div>
+            <div class="mxwrap"><table class="mx" id="mx-table"></table></div>
+            <p class="fine" id="mx-note"></p>
+        </div>
         <div class="toolbar" role="group" aria-label="まとめて保存">
             <button class="btn" type="button" data-col="csv">まとめCSV(数値)</button>
             <button class="btn sub" type="button" data-col="tablecsv">まとめCSV(表)</button>
+            <button class="btn sub" type="button" data-col="mxcsv" title="いま画面に出ている一覧表(論文×項目)をCSVにします">一覧表CSV</button>
             <button class="btn sub" type="button" data-col="clear">一覧をすべて削除</button>
             <span class="fine" id="collect-msg" role="status" style="margin:0"></span>
         </div>
@@ -2285,7 +2317,127 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         var anyNum = collection.some(function (r) { return hasNums(r.nums); }), anyTab = collection.some(function (r) { return (r.nums.tables || []).length; });
         $('[data-col="csv"]').disabled = !anyNum; $('[data-col="tablecsv"]').disabled = !anyTab;
         $('#collect-msg').textContent = '';
+        renderMatrix();
     }
+    /* ================= paper x item matrix ================= */
+    var MX_KINDS = [['cond', '実験条件'], ['head', '最初の結果'], ['fact', '本文・図表の数値'], ['tab', '表のセル']];
+    var mxState = { common: true, q: '', kinds: { cond: true, head: true, fact: true, tab: true }, sortKey: null, sortDir: 0, view: null };
+    function mxNorm(t) { return String(t).normalize('NFKC').toLowerCase().replace(/[\s・,，、.()（）\-_/:：]+/g, ''); }
+    function buildMatrix() {
+        var items = {}, order = [], cells = collection.map(function () { return {}; });
+        function put(pi, kind, label, text, num, unit, src) {
+            if (!text || !label) return;
+            var key = kind + '|' + mxNorm(label);
+            if (!items[key]) { items[key] = { key: key, kind: kind, label: label, papers: {} }; order.push(key); }
+            var cell = cells[pi][key];
+            if (!cell) { cells[pi][key] = { text: text, num: num, unit: unit || '', src: src, n: 1 }; items[key].papers[pi] = 1; }
+            else { cell.n++; if (cell.n === 2) cell.text += ' ; ' + text; }
+        }
+        collection.forEach(function (r, pi) {
+            var n = r.nums, where = function (page, sec) { return r.title + ' ・ p.' + (page || '?') + (sec ? ' ・ ' + sec : ''); };
+            n.conds.forEach(function (c) { var vi = valInfo(c.text); put(pi, 'cond', c.label, c.text, vi.num === '' ? null : +vi.num, vi.unit, where(c.page, SEC_LABEL[c.section] || c.section)); });
+            if (n.facts.length) {
+                var f0 = n.facts[0], arrow = f0.dir === 'up' ? '↑' : f0.dir === 'down' ? '↓' : '';
+                put(pi, 'head', '最初の結果の数値', arrow + (f0.series ? seriesLine(f0.series) : f0.pair ? pairLine(f0.pair) : f0.values.map(function (v) { return v.text; }).join(' ')), null, '', where(f0.page, f0.section === 'caption' ? '図表キャプション' : SEC_LABEL[f0.section]));
+            }
+            n.facts.forEach(function (f) {
+                var w = where(f.page, f.section === 'caption' ? '図表キャプション' : SEC_LABEL[f.section]), add = function (it, unit) { put(pi, 'fact', it.label, it.text, isNaN(parseFloat(it.numText)) ? null : (it.num != null ? it.num : parseFloat(it.numText)), unit, w); };
+                if (f.series) f.series.items.forEach(function (it) { add(it, f.series.unit); });
+                else if (f.pair) [f.pair.a, f.pair.b].forEach(function (it) { add(it, f.pair.unit); });
+                else if (f.label && f.values[0]) { var vi = valInfo(f.values[0].text); put(pi, 'fact', f.label, f.values[0].text, vi.num === '' ? null : +vi.num, vi.unit, w); }
+            });
+            (n.tables || []).forEach(function (tb) {
+                tb.rows.forEach(function (row) {
+                    if (!row[0]) return;
+                    for (var k = 1; k < tb.header.length; k++) {
+                        var cell = row[k]; if (!cell) continue;
+                        var pv = parseCell(cell);
+                        put(pi, 'tab', row[0] + ' / ' + (tb.header[k] || ('列' + (k + 1))), cell, pv ? pv.num : null, pv ? tableUnitOf(tb, k) : '', where(tb.page, tb.label));
+                    }
+                });
+            });
+        });
+        return { items: order.map(function (k) { return items[k]; }), cells: cells };
+    }
+    function renderMatrix() {
+        var sec = $('#mx'); sec.hidden = !collection.length;
+        if (!collection.length) { mxState.view = null; return; }
+        var m = buildMatrix(), np = collection.length, q = mxNorm(mxState.q), kindOrder = {};
+        MX_KINDS.forEach(function (k, i) { kindOrder[k[0]] = i; });
+        var cols = m.items.filter(function (it) { it.count = Object.keys(it.papers).length; return mxState.kinds[it.kind]; });
+        if (q) cols = cols.filter(function (it) { return mxNorm(it.label).indexOf(q) >= 0; });
+        var common = mxState.common && np >= 2;
+        if (common) cols = cols.filter(function (it) { return it.count >= 2 || it.kind === 'head'; });
+        cols.sort(function (x, y) { return kindOrder[x.kind] - kindOrder[y.kind] || y.count - x.count || x.label.localeCompare(y.label); });
+        var CAP = 60, total = cols.length; cols = cols.slice(0, CAP);
+        var rowIdx = collection.map(function (r, i) { return i; });
+        if (mxState.sortKey && mxState.sortDir) {
+            rowIdx.sort(function (a, b) {
+                var ca = m.cells[a][mxState.sortKey], cb = m.cells[b][mxState.sortKey];
+                var va = ca && ca.num != null ? ca.num : null, vb = cb && cb.num != null ? cb.num : null;
+                if (va == null && vb == null) return 0;
+                if (va == null) return 1; if (vb == null) return -1;
+                return mxState.sortDir === 1 ? vb - va : va - vb;
+            });
+        }
+        var table = $('#mx-table'); table.textContent = '';
+        var thead = el('thead'), htr = el('tr'); htr.appendChild(el('th', null, '論文'));
+        cols.forEach(function (it) {
+            var th = el('th'), btn = el('button', null, it.label.length > 24 ? it.label.slice(0, 23) + '…' : it.label);
+            btn.type = 'button'; btn.title = it.label + '(クリックで数値の大きい順 → 小さい順 → 元の順)';
+            btn.addEventListener('click', function () {
+                if (mxState.sortKey !== it.key) { mxState.sortKey = it.key; mxState.sortDir = 1; } else { mxState.sortDir = mxState.sortDir === 1 ? 2 : mxState.sortDir === 2 ? 0 : 1; }
+                renderMatrix();
+            });
+            th.appendChild(el('span', 'kk', MX_KINDS[kindOrder[it.kind]][1])); th.appendChild(btn); th.appendChild(el('small', null, it.count + '本'));
+            th.setAttribute('aria-sort', mxState.sortKey === it.key ? (mxState.sortDir === 1 ? 'descending' : mxState.sortDir === 2 ? 'ascending' : 'none') : 'none');
+            if (mxState.sortKey === it.key && mxState.sortDir) btn.textContent += mxState.sortDir === 1 ? ' ▼' : ' ▲';
+            htr.appendChild(th);
+        });
+        thead.appendChild(htr); table.appendChild(thead);
+        // max / min markers per column (only when at least two cells share a unit)
+        var mark = {};
+        cols.forEach(function (it) {
+            var vals = collection.map(function (r, pi) { return m.cells[pi][it.key]; }).filter(function (c) { return c && c.num != null && c.n === 1; });
+            if (vals.length < 2 || vals.some(function (c) { return norm(c.unit) !== norm(vals[0].unit); })) return;
+            var hi = Math.max.apply(null, vals.map(function (c) { return c.num; })), lo = Math.min.apply(null, vals.map(function (c) { return c.num; }));
+            if (hi !== lo) mark[it.key] = { hi: hi, lo: lo };
+        });
+        var tbody = el('tbody');
+        rowIdx.forEach(function (pi) {
+            var tr = el('tr'), th = el('td', null, collection[pi].title); th.title = collection[pi].fileName; tr.appendChild(th);
+            cols.forEach(function (it) {
+                var c = m.cells[pi][it.key], td = el('td', c ? null : 'empty', c ? c.text : '–');
+                if (c) { td.title = c.src; var mk = mark[it.key]; if (mk && c.num != null && c.n === 1) { if (c.num === mk.hi) td.className = 'hi'; else if (c.num === mk.lo) td.className = 'lo'; } }
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        $('#mx-note').textContent = cols.length
+            ? '項目 ' + cols.length + '件' + (total > cols.length ? '(全 ' + total + ' 件のうち、先頭 ' + CAP + ' 件)' : '') + ' ・ 緑=その列で最大、橙=最小(同じ単位の数値が2つ以上あるとき) ・ 同じ項目が1つの論文に複数あるときは「 ; 」でつないでいます ・ セルにカーソルを置くと出典が出ます。'
+            : (np < 2 && mxState.common ? '2本以上の論文を入れると、共通の項目を並べて比べられます。「2本以上にある項目だけ」を外すと、1本だけの項目も出ます。' : '条件に合う項目がありません。絞り込みを変えてください。');
+        mxState.view = { cols: cols, rowIdx: rowIdx, cells: m.cells };
+    }
+    function matrixCsvRows() {
+        var v = mxState.view; if (!v) return [];
+        var rows = [['論文', 'ファイル'].concat(v.cols.map(function (it) { return '[' + MX_KINDS.filter(function (k) { return k[0] === it.kind; })[0][1] + '] ' + it.label; }))];
+        v.rowIdx.forEach(function (pi) {
+            rows.push([collection[pi].title, collection[pi].fileName].concat(v.cols.map(function (it) { var c = v.cells[pi][it.key]; return c ? c.text : ''; })));
+        });
+        return rows;
+    }
+    (function setupMatrix() {
+        var kinds = $('#mx-kinds');
+        MX_KINDS.forEach(function (k) {
+            var lb = el('label'), cb = el('input'); cb.type = 'checkbox'; cb.checked = true;
+            cb.addEventListener('change', function () { mxState.kinds[k[0]] = cb.checked; renderMatrix(); });
+            lb.appendChild(cb); lb.appendChild(document.createTextNode(k[1])); kinds.appendChild(lb);
+        });
+        $('#mx-common').addEventListener('change', function (e) { mxState.common = e.target.checked; renderMatrix(); });
+        $('#mx-q').addEventListener('input', function (e) { mxState.q = e.target.value; renderMatrix(); });
+    })();
+
     function collectNumbersRows() {
         var rows = [['論文', 'ファイル'].concat(CSV_HEAD)];
         collection.forEach(function (r) { numbersCsvRows(r.nums).slice(1).forEach(function (row) { rows.push([r.title, r.fileName].concat(row)); }); });
@@ -2306,8 +2458,8 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         btn.addEventListener('click', function () {
             var which = btn.dataset.col, msg = $('#collect-msg');
             if (which === 'clear') { collection = []; renderCollect(); return; }
-            var rows = which === 'csv' ? collectNumbersRows() : collectTablesRows();
-            saveBlob(new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8' }), '4koma-collection-' + (which === 'csv' ? 'numbers' : 'tables') + '.csv');
+            var rows = which === 'csv' ? collectNumbersRows() : which === 'mxcsv' ? matrixCsvRows() : collectTablesRows();
+            saveBlob(new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8' }), '4koma-collection-' + (which === 'csv' ? 'numbers' : which === 'mxcsv' ? 'matrix' : 'tables') + '.csv');
             msg.textContent = collection.length + '件の論文をまとめて保存しました。';
         });
     });
