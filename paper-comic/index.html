@@ -661,15 +661,101 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         return pr;
     }
     function pairLine(pr) { return pr.a.text + (pr.title === '前後比較' ? ' → ' : ' vs ') + pr.b.text; }
-    function findPair(text) {
+
+    function tokenize(text) {
         var toks = [], m, re = new RegExp(TOKEN, 'gi');
         while ((m = re.exec(text))) {
             if (!m[0].length) { re.lastIndex++; continue; }
             if (/\bp\s*[<=＜＝≤≦]\s*$/i.test(text.slice(Math.max(0, m.index - 8), m.index))) continue;
             var n = parseFloat(m[1].replace(/,/g, '')), unit = m[2] || '';
             if (!unit && n >= 1900 && n <= 2100) continue;
+            if (!unit && /^\s?(?:か月|ヶ月|ケ月|週間|週|日目|日間|日|年間|年|months?\b|weeks?\b|days?\b|years?\b)/i.test(text.slice(m.index + m[0].length - (m[0].length - m[1].length) ))) continue;
             toks.push({ s: m.index, e: m.index + m[0].replace(/\s+$/, '').length, n: n, numText: m[1], unit: unit });
         }
+        return toks;
+    }
+    /* ---- three or more groups / time points ---- */
+    function cleanSeriesLabel(w, isFirst) {
+        if (isFirst) { var parts = w.split(/[、,，;；。]/); w = parts[parts.length - 1].replace(/^.*\b(?:in|for|among|at)\s+/i, ''); }
+        w = w.replace(/^[\s、,，;；)）]*(?:(?:and|or)\s+|および\s*|ならびに\s*|と\s*|や\s*)?/i, '').replace(/^(?:the|in|for|among)\s+/i, '');
+        var prev;
+        do {
+            prev = w;
+            w = w.replace(/[\s:：=＝(（]+$/, '').replace(/(?:では|には|は|が|で|を|の|も)$/, '').replace(/\s+(?:was|were|had|reached|of|at|is|are|scored|showed|achieved|for)$/i, '');
+        } while (w !== prev);
+        return w.trim().replace(/^(.{1,8}[群組])の.*$/, '$1');
+    }
+    function validLabel(l) { return !!l && l.length <= 14 && /[A-Za-z぀-ヿ一-鿿]/.test(l); }
+    function splitList(str) { return str.split(/\s*[、,，]\s*(?:and\s+)?|\s+and\s+|\s*と\s*|\s*や\s*/i).map(function (x) { return cleanSeriesLabel(x, false).replace(/\s+(?:groups?|arms?|conditions?)$/i, ''); }).filter(Boolean); }
+    function respectivelyLabels(text, run) {
+        var n = run.length, items = [];
+        if (!/それぞれ|respectively/i.test(text)) return null;
+        var after = text.slice(run[n - 1].e).match(/\bfor\s+(?:the\s+)?(.+?)[,\s]*respectively/i);
+        if (after) items = splitList(after[1]);
+        if (items.length < n) {
+            var before = text.slice(0, run[0].s).split(/[。.]/).pop().replace(/\s*(?:それぞれ|(?:showed|had|reached|were|was|scored|achieved)\b.*)$/i, '');
+            items = splitList(before);
+        }
+        items = items.slice(-n);
+        return items.length === n && items.every(validLabel) ? items : null;
+    }
+    function labelsAfter(text, run) {
+        var out = [];
+        for (var k = 0; k < run.length; k++) {
+            var seg = text.slice(run[k].e, k + 1 < run.length ? run[k + 1].s : run[k].e + 40);
+            var m = seg.match(/^\s*(?:in|for|among|at|within)\s+(?:the\s+)?([^,;.()]{1,18}?)\s*(?:[,;.()]|\band\b|\bwhile\b|\bto\b|$)/i);
+            if (!m) return null;
+            out.push(cleanSeriesLabel(m[1], false));
+        }
+        return out;
+    }
+    function findSeries(text) {
+        var toks = tokenize(text);
+        for (var i = 0; i + 2 < toks.length; i++) {
+            var run = [toks[i]], unit = toks[i].unit;
+            for (var j = i + 1; j < toks.length; j++) {
+                var g = text.slice(toks[j - 1].e, toks[j].s), u = toks[j].unit;
+                if (g.length > 36 || /[。！？]|[.!?](?:\s|$)/.test(g) || (u && unit && norm(u) !== norm(unit))) break;
+                if (u && !unit) unit = u;
+                run.push(toks[j]);
+            }
+            if (run.length < 3 || !unit) continue;
+            run = run.slice(0, 8);
+            var ok = function (l) { var u = {}; (l || []).forEach(function (x) { u[x] = 1; }); return !!l && l.every(validLabel) && Object.keys(u).length === l.length; };
+            var labs = labelsAfter(text, run);
+            if (!ok(labs)) labs = run.map(function (t, k) { return cleanSeriesLabel(text.slice(k === 0 ? Math.max(0, t.s - 30) : run[k - 1].e, t.s), k === 0); });
+            if (!ok(labs)) labs = respectivelyLabels(text, run);
+            if (!labs) continue;
+            return makeSeries(labs, run.map(function (t) { return { numText: t.numText, num: t.n }; }), unit);
+        }
+        return null;
+    }
+    function makeSeries(labels, nums, unit) {
+        var pct = /^(?:%|％|パーセント|percent)/i.test(unit);
+        var items = nums.map(function (n, k) { return { label: String(labels[k]).slice(0, 14), text: fmtVal(n.numText, unit), numText: n.numText, num: n.num }; });
+        var time = labels.some(function (l) { return /前|後|か月|ヶ月|週|年|日目|baseline|follow|month|week|year|day/i.test(l); });
+        var sr = { items: items, unit: unit, pct: pct, title: time ? '推移' : '群の比較', hi: null, lo: null, diff: null, rel: null };
+        var hi = items[0], lo = items[0];
+        items.forEach(function (it) { if (it.num > hi.num) hi = it; if (it.num < lo.num) lo = it; });
+        sr.hi = hi; sr.lo = lo;
+        if (!/^(?:倍|×)/.test(unit) && hi !== lo) {
+            var d = hi.num - lo.num, dec = Math.max(decimals(hi.numText), decimals(lo.numText));
+            sr.diff = '+' + d.toFixed(dec) + (pct ? 'ポイント' : (/^[A-Za-z]/.test(unit) ? ' ' + unit : unit));
+            if (lo.num) sr.rel = '+' + (d / lo.num * 100).toFixed(1) + '%';
+        }
+        return sr;
+    }
+    function seriesLine(sr) { return sr.items.map(function (it) { return it.text; }).join(sr.title === '推移' ? ' → ' : ' / '); }
+    function seriesFromTexts(items) {
+        var pm = function (t) { var m = String(t).trim().match(/^(\d+(?:[.,]\d+)?)\s?(.*)$/); return m ? { numText: m[1], num: parseFloat(m[1].replace(/,/g, '')), unit: m[2].trim() } : null; };
+        var parsed = items.map(function (it) { return pm(it.value); });
+        if (parsed.length < 3 || parsed.some(function (x) { return !x; })) return null;
+        var unit = parsed.map(function (x) { return x.unit; }).filter(Boolean)[0];
+        if (!unit || parsed.some(function (x) { return x.unit && norm(x.unit) !== norm(unit); })) return null;
+        return makeSeries(items.map(function (it) { return it.label; }), parsed, unit);
+    }
+    function findPair(text) {
+        var toks = tokenize(text);
         for (var i = 0; i + 1 < toks.length; i++) {
             var a = toks[i], b = toks[i + 1], gap = text.slice(a.e, b.s);
             if (gap.length > 44) continue;
@@ -708,19 +794,22 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             var hits = findValues(t), pHit = hits.filter(function (h) { return h.kind === 'p'; })[0];
             var vals = hits.filter(function (h) { return h.kind !== 'p'; });
             if (!vals.length) return;
-            var sig = significance(t, pHit), cmp = comparator(t), pair = findPair(t);
+            var sig = significance(t, pHit), cmp = comparator(t), series = findSeries(t), pair = series ? null : findPair(t);
             var texts = vals.map(function (v) { return v.text; });
             cands.push({
                 i: i, values: vals.slice(0, 3).map(function (v) { return { kind: v.kind, text: v.text, at: v.s }; }), sentence: t, page: s.page, section: s.section,
-                dir: sig === 'nosig' ? 'none' : direction(t, vals[0].e), compare: cmp, sig: sig, p: pHit ? pHit.text : '', gauge: pair ? null : gaugeOf(texts, t), pair: pair, ai: false,
-                score: w + Math.min(vals.length, 3) * 0.7 + (pHit ? 1 : 0) + (cmp ? 1 : 0) + (sig ? 0.5 : 0) + (pair ? 1.5 : 0)
+                dir: sig === 'nosig' ? 'none' : direction(t, vals[0].e), compare: cmp, sig: sig, p: pHit ? pHit.text : '', gauge: (pair || series) ? null : gaugeOf(texts, t), pair: pair, series: series, ai: false,
+                score: w + Math.min(vals.length, 3) * 0.7 + (pHit ? 1 : 0) + (cmp ? 1 : 0) + (sig ? 0.5 : 0) + ((pair || series) ? 1.5 : 0)
             });
         });
         cands.sort(function (x, y) { return y.score - x.score; });
-        var kept = [], seenVals = {};
-        cands.forEach(function (c) {
-            var set = c.values.map(function (v) { return norm(v.text); });
-            if (set.every(function (x) { return seenVals[x]; }) || kept.length >= 6) return;
+        var kept = [], seenVals = {}, summary = function (c) { return c.section === 'abstract' || c.section === 'front'; };
+        var valSet = function (c) { return (c.series ? c.series.items : c.pair ? [c.pair.a, c.pair.b] : c.values).map(function (v) { return norm(v.text); }); };
+        // result-section sentences are all kept; abstract/front sentences only when they add a value not yet shown
+        cands.filter(function (c) { return !summary(c); }).forEach(function (c) { if (kept.length < 6) { kept.push(c); valSet(c).forEach(function (x) { seenVals[x] = true; }); } });
+        cands.filter(summary).forEach(function (c) {
+            var set = valSet(c);
+            if (kept.length >= 6 || set.every(function (x) { return seenVals[x]; })) return;
             kept.push(c); set.forEach(function (x) { seenVals[x] = true; });
         });
         kept.sort(function (x, y) { return x.i - y.i; });
@@ -763,6 +852,7 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             'さらに"numbers"を最大6件、実験結果の数値(本文にある%・倍・単位つきの値)について返してください: ' +
             '"numbers":[{"label":"何の数字か(25字以内)","value":"本文にある表記のまま(例: 35分)","compare":"何と比べてか(なければ空)","direction":"up|down|none","quote":"その数値を含む本文の一節(原文のまま80字以内)","pair":{"beforeLabel":"例: 調査前","before":"本文の表記(例: 48%)","afterLabel":"例: 調査後","after":"本文の表記(例: 31%)"}}]\n' +
             'pairは、本文に前後や群ごとの2つの値が両方書かれている場合だけ付ける(片方しかなければ付けない)。\n' +
+            '3つ以上の群・時点の値が本文に書かれている場合は、numbersの項目に"series":[{"label":"群や時点の名前","value":"本文の表記"}, ...]を付ける(単位は同じものだけ)。\n' +
             '規則: 本文にないことは書かない。数値は本文のまま。本文に根拠がないコマは、captionとquoteを空文字にする(特にlimitとinsight)。termsは最大2つ。\n\n' + aiContext(a);
         var r = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
@@ -806,11 +896,16 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
                 good.push({
                     i: 0, ai: true, values: [{ kind: 'ai', text: value, at: Math.max(0, text.indexOf(value)) }], label: String(n.label || '').slice(0, 40), sentence: text,
                     page: hit ? hit.page : null, section: hit ? hit.section : null, dir: dir, compare: String(n.compare || '').slice(0, 40),
-                    sig: significance(text, null), p: '', gauge: null, pair: null
+                    sig: significance(text, null), p: '', gauge: null, pair: null, series: null
                 });
                 var fact = good[good.length - 1];
                 if (n.pair && n.pair.before && n.pair.after && q.indexOf(norm(String(n.pair.before))) >= 0 && q.indexOf(norm(String(n.pair.after))) >= 0) fact.pair = pairFromTexts(n.pair.before, n.pair.after, n.pair.beforeLabel, n.pair.afterLabel);
-                if (!fact.pair) fact.gauge = gaugeOf([value], text);
+                if (Array.isArray(n.series) && n.series.length >= 3) {
+                    var okSeries = n.series.slice(0, 8).every(function (it) { return it && it.value && q.indexOf(norm(String(it.value))) >= 0 && String(it.label || '').trim(); });
+                    if (okSeries) fact.series = seriesFromTexts(n.series.slice(0, 8));
+                }
+                if (fact.series) fact.pair = null;
+                if (!fact.pair && !fact.series) fact.gauge = gaugeOf([value], text);
             });
             if (good.length) nums.facts = good;
         }
@@ -929,6 +1024,35 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         add('text', { x: 164, y: 186, 'text-anchor': 'middle', 'font-size': 9, class: 'mut' }, '軸は0から ・ 差は本文の数値から計算した参考値');
         return svg;
     }
+
+    function seriesScale(sr) { var mx = Math.max.apply(null, sr.items.map(function (i) { return i.num; }).concat(0)); return (sr.pct && mx <= 100) ? 100 : niceMax((mx || 1) * 1.1); }
+    function seriesSvg(sr) {
+        var NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg'), n = sr.items.length, scale = seriesScale(sr);
+        var left = 44, right = 332, base = 160, H = 96, slot = (right - left) / n, bw = Math.min(70, slot * 0.62), small = n > 4;
+        svg.setAttribute('viewBox', '0 0 340 200'); svg.setAttribute('role', 'img');
+        svg.setAttribute('aria-label', sr.title + 'のバー図: ' + sr.items.map(function (it) { return it.label + ' ' + it.text; }).join('、') + (sr.diff ? '。最高と最低の差 ' + sr.diff : ''));
+        function add(tag, attrs, text) {
+            var e = document.createElementNS(NS, tag);
+            Object.keys(attrs).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+            if (text != null) e.textContent = text;
+            svg.appendChild(e); return e;
+        }
+        add('line', { x1: left, y1: base - H, x2: right, y2: base - H, class: 'grid' });
+        add('line', { x1: left, y1: base, x2: right, y2: base, class: 'axis' });
+        add('line', { x1: left, y1: base - H, x2: left, y2: base, class: 'axis' });
+        add('text', { x: left - 4, y: base + 4, 'text-anchor': 'end', 'font-size': 10, class: 'mut' }, '0');
+        add('text', { x: left - 4, y: base - H + 4, 'text-anchor': 'end', 'font-size': 10, class: 'mut' }, String(scale) + (sr.pct ? '%' : ''));
+        sr.items.forEach(function (it, k) {
+            var bx = left + slot * k + (slot - bw) / 2, h = Math.max(2, it.num / scale * H), ref = /前|基準|対照|従来|プラセボ|ベースライン|baseline|control/i.test(it.label);
+            add('rect', { x: bx, y: base - h, width: bw, height: h, class: ref ? 'ba' : 'bb' });
+            add('text', { x: bx + bw / 2, y: base - h - 5, 'text-anchor': 'middle', 'font-size': small ? 11 : 14, 'font-weight': 800 }, it.text);
+            var max = small ? 6 : 9;
+            add('text', { x: bx + bw / 2, y: base + 15, 'text-anchor': 'middle', 'font-size': small ? 10 : 12 }, it.label.length > max ? it.label.slice(0, max - 1) + '…' : it.label);
+        });
+        if (sr.diff) add('text', { x: 190, y: 14, 'text-anchor': 'middle', 'font-size': 12, class: 'dl' }, '最高 ' + sr.hi.label + ' と最低 ' + sr.lo.label + ' の差 ' + sr.diff);
+        add('text', { x: 190, y: 194, 'text-anchor': 'middle', 'font-size': 9, class: 'mut' }, '軸は0から ・ 差は本文の数値から計算した参考値');
+        return svg;
+    }
     var SIG_TEXT = { sig: '統計的に有意(偶然とは考えにくい差)', nosig: 'はっきりした差は確認されていない' };
     function highlight(parent, text, values) {
         var vs = values.map(function (v) { return v.text; }).filter(Boolean).sort(function (x, y) { return y.length - x.length; });
@@ -953,17 +1077,20 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             var card = el('article', 'fact ' + f.dir);
             var vals = el('div', 'vals');
             if (f.dir !== 'none') { var ar = el('span', 'arrow', f.dir === 'up' ? '↑' : '↓'); ar.setAttribute('aria-label', f.dir === 'up' ? '増加' : '減少'); vals.appendChild(ar); }
-            if (f.pair) vals.appendChild(el('b', null, pairLine(f.pair)));
+            if (f.series) vals.appendChild(el('b', null, seriesLine(f.series)));
+            else if (f.pair) vals.appendChild(el('b', null, pairLine(f.pair)));
             else f.values.forEach(function (v) { vals.appendChild(el('b', null, v.text)); });
             card.appendChild(vals);
-            if (f.pair) { var pw = el('div', 'pair'); pw.appendChild(pairSvg(f.pair)); card.appendChild(pw); }
+            if (f.series) { var sw = el('div', 'pair'); sw.appendChild(seriesSvg(f.series)); card.appendChild(sw); }
+            else if (f.pair) { var pw = el('div', 'pair'); pw.appendChild(pairSvg(f.pair)); card.appendChild(pw); }
             if (f.gauge != null) { var g = el('div', 'gauge'); g.setAttribute('role', 'img'); g.setAttribute('aria-label', '0〜100%のうち' + f.gauge + '%'); var bar = el('i'); bar.style.width = f.gauge + '%'; g.appendChild(bar); card.appendChild(g); }
             var sn = el('p', 'snip');
             if (f.label) { sn.appendChild(el('b', null, f.label)); }
             else highlight(sn, factSnippet(f), f.values);
             card.appendChild(sn);
             var tags = el('div', 'tags');
-            if (f.pair) tags.appendChild(el('span', null, f.pair.title));
+            if (f.series) tags.appendChild(el('span', null, f.series.title));
+            else if (f.pair) tags.appendChild(el('span', null, f.pair.title));
             if (f.compare) tags.appendChild(el('span', null, '比較: ' + f.compare));
             if (f.sig) tags.appendChild(el('span', f.sig, SIG_TEXT[f.sig] + (f.p ? '(' + f.p + ')' : '')));
             if (f.ai) tags.appendChild(el('span', null, 'AIが整理・本文と照合済み'));
@@ -973,9 +1100,9 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             var d = el('details'); d.appendChild(el('summary', null, '原文を見る')); d.appendChild(el('blockquote', null, f.sentence)); card.appendChild(d);
             box.appendChild(card);
         });
-        var anySig = nums.facts.some(function (f) { return f.sig; }), anyPair = nums.facts.some(function (f) { return f.pair; });
+        var anySig = nums.facts.some(function (f) { return f.sig; }), anyPair = nums.facts.some(function (f) { return f.pair || f.series; });
         note.textContent = '本文の記述から数字を抜き出したもので、表や図の中の数値は含まれないことがあります。数字の意味や条件は、必ず原文で確認してください。' +
-            (anyPair ? ' 2つの値が並んで書かれている箇所は、バー図にしています(軸は0から。「差」は本文の数値から計算した参考値です)。差だけが書かれていて元の値がない場合は、バー図にしていません。' : '') +
+            (anyPair ? ' 2つ以上の値が並んで書かれている箇所は、バー図にしています(軸は0から。「差」は本文の数値から計算した参考値です)。差だけが書かれていて元の値がない場合は、バー図にしていません。' : '') +
             (anySig ? ' 「有意」は、偶然でもこのくらいの差が出る確率(p値)が小さい(一般に0.05未満)ときに使われる言葉です。差の大きさや重要さを示すものではありません。' : '');
         current.hasNums = hasNums(nums);
         var nb = document.querySelector('[data-exp="numbers"]'); if (nb) nb.disabled = !current.hasNums;
@@ -1161,6 +1288,24 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         c.fillStyle = EX.muted; c.font = '18px ' + FONT; c.fillText('軸は0から ・ 差は本文の数値から計算した参考値', x + w / 2, y + h - 12);
         c.textAlign = 'left';
     }
+
+    function drawSeries(c, x, y, w, h, sr) {
+        var n = sr.items.length, scale = seriesScale(sr), top = y + 74, base = y + h - 66, H = base - top, ax = x + 56, small = n > 4;
+        var span = w - 56 - 20, slot = span / n, bw = Math.min(120, slot * 0.64);
+        c.fillStyle = '#f3efe3'; rrect(c, x, y, w, h, 10); c.fill();
+        c.strokeStyle = '#a9a39a'; c.lineWidth = 2; c.setLineDash([6, 6]); c.beginPath(); c.moveTo(ax, top); c.lineTo(x + w - 20, top); c.stroke(); c.setLineDash([]);
+        c.beginPath(); c.moveTo(ax, top); c.lineTo(ax, base); c.lineTo(x + w - 20, base); c.stroke();
+        c.fillStyle = EX.muted; c.font = '20px ' + FONT; c.textAlign = 'right'; c.fillText('0', ax - 8, base + 6); c.fillText(String(scale) + (sr.pct ? '%' : ''), ax - 8, top + 6);
+        sr.items.forEach(function (it, k) {
+            var bx = ax + slot * k + (slot - bw) / 2, bh = Math.max(3, it.num / scale * H), ref = /前|基準|対照|従来|プラセボ|ベースライン|baseline|control/i.test(it.label);
+            c.fillStyle = ref ? '#d0ebff' : '#3b5bdb'; c.fillRect(bx, base - bh, bw, bh); c.strokeStyle = EX.ink; c.lineWidth = 4; c.strokeRect(bx, base - bh, bw, bh);
+            c.textAlign = 'center'; c.fillStyle = EX.ink; c.font = '800 ' + (small ? 26 : 32) + 'px ' + FONT; c.fillText(it.text, bx + bw / 2, base - bh - 10);
+            c.font = (small ? 20 : 24) + 'px ' + FONT; c.fillText(clip(c, it.label, slot - 6), bx + bw / 2, base + 30);
+        });
+        if (sr.diff) { c.fillStyle = '#3b5bdb'; c.font = '800 20px ' + FONT; c.fillText(clip(c, '最高 ' + sr.hi.label + ' と最低 ' + sr.lo.label + ' の差 ' + sr.diff + (sr.rel ? '(相対 ' + sr.rel + ')' : ''), w - 20), x + w / 2, y + 34); }
+        c.fillStyle = EX.muted; c.font = '18px ' + FONT; c.fillText('軸は0から ・ 差は本文の数値から計算した参考値', x + w / 2, y + h - 12);
+        c.textAlign = 'left';
+    }
     async function drawNumbers(nums, title, opt) {
         var W = EX.W, M = EX.M, CW = EX.PW, meta = BOOK_META.numbers, sc = document.createElement('canvas').getContext('2d');
         sc.font = '800 36px ' + FONT;
@@ -1178,12 +1323,13 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             var lines = wrapText(sc, f.label ? f.label : factSnippet(f), CW - PAD * 2 - 14);
             if (lines.length > 4) { lines = lines.slice(0, 4); lines[3] = clip(sc, lines[3] + ' …', CW - PAD * 2 - 14); }
             var meta2 = [];
-            if (f.pair) meta2.push({ t: f.pair.title, c: EX.muted });
+            if (f.series) meta2.push({ t: f.series.title, c: EX.muted });
+            else if (f.pair) meta2.push({ t: f.pair.title, c: EX.muted });
             if (f.compare) meta2.push({ t: '比較: ' + f.compare, c: EX.muted });
             if (f.sig) meta2.push({ t: '● ' + SIG_TEXT[f.sig], c: f.sig === 'sig' ? '#2b8a3e' : EX.muted });
             var where = [f.page ? 'p.' + f.page : '', f.section ? '章: ' + (SEC_LABEL[f.section] || f.section) : ''].filter(Boolean).join(' ・ ');
             if (where) meta2.push({ t: '出典 ' + where, c: EX.muted, small: true });
-            return { f: f, lines: lines, meta: meta2, h: PAD + 74 + (f.pair ? 320 : (f.gauge != null ? 44 : 0)) + lines.length * LH + 10 + meta2.length * 34 + 16 };
+            return { f: f, lines: lines, meta: meta2, h: PAD + 74 + ((f.pair || f.series) ? 320 : (f.gauge != null ? 44 : 0)) + lines.length * LH + 10 + meta2.length * 34 + 16 };
         });
         var rows = []; for (var i = 0; i < cards.length; i += 2) rows.push(Math.max(cards[i].h, cards[i + 1] ? cards[i + 1].h : 0));
         var bodyH = rows.reduce(function (s, h) { return s + h + EX.G; }, 0);
@@ -1212,13 +1358,15 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
                 c.fillStyle = '#ffffff'; c.fillRect(x, y0, CW, rh); c.fillStyle = bandCol; c.fillRect(x, y0, 14, rh); c.restore();
                 c.strokeStyle = EX.ink; c.lineWidth = 6; rrect(c, x, y0, CW, rh, 10); c.stroke();
                 var tx = x + PAD + 14, ty = y0 + PAD;
-                c.font = '800 54px ' + FONT; var vx = tx;
+                c.font = '800 ' + (f.series ? 38 : 54) + 'px ' + FONT; var vx = tx;
                 if (f.dir !== 'none') { c.fillStyle = bandCol; c.fillText(f.dir === 'up' ? '↑' : '↓', vx, ty + 56); vx += c.measureText('↑ ').width + 6; }
                 c.fillStyle = EX.ink;
-                if (f.pair) c.fillText(clip(c, pairLine(f.pair), CW - PAD * 2 - 14 - (vx - tx)), vx, ty + 56);
+                if (f.series) c.fillText(clip(c, seriesLine(f.series), CW - PAD * 2 - 14 - (vx - tx)), vx, ty + 56);
+                else if (f.pair) c.fillText(clip(c, pairLine(f.pair), CW - PAD * 2 - 14 - (vx - tx)), vx, ty + 56);
                 else f.values.forEach(function (v) { if (vx - tx < CW - 220) { c.fillText(v.text, vx, ty + 56); vx += c.measureText(v.text).width + 28; } });
                 ty += 74;
-                if (f.pair) { drawPair(c, tx, ty, CW - PAD * 2 - 14, 310, f.pair); ty += 320; }
+                if (f.series) { drawSeries(c, tx, ty, CW - PAD * 2 - 14, 310, f.series); ty += 320; }
+                else if (f.pair) { drawPair(c, tx, ty, CW - PAD * 2 - 14, 310, f.pair); ty += 320; }
                 else if (f.gauge != null) {
                     c.fillStyle = '#efeadb'; rrect(c, tx, ty, CW - PAD * 2 - 14, 22, 11); c.fill();
                     c.fillStyle = '#3b5bdb'; rrect(c, tx, ty, Math.max(8, (CW - PAD * 2 - 14) * f.gauge / 100), 22, 11); c.fill();
@@ -1462,6 +1610,7 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         '屋外活動群の平日の睡眠時間は、調査前と比べて平均35分増加した(p < 0.01)。',
         '寝つきがよいと答えた生徒の割合は、対照群の65%に対し、屋外活動群では82%に向上した(p = 0.03)。',
         '起床時に強い眠気を感じる生徒の割合は、調査前の48%から調査後は31%へ低下した。',
+        '屋外活動の時間別では、短時間群は28分、中時間群は35分、長時間群は41分の睡眠時間の増加を示した。',
         '結果として、課題の提出率は91%で、群間に差は見られなかった。',
         '4. 考察',
         'この結果は、朝の光が体内時計を整え、夜の眠気を早めた可能性を示唆している。',
