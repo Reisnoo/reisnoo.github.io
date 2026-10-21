@@ -133,6 +133,19 @@ h1 { font-size: clamp(1.7rem, 5vw, 2.6rem); line-height: 1.3; }
 .fact .tags { display: flex; flex-wrap: wrap; gap: 6px; font-size: .78rem; }
 .fact .tags span { border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; background: var(--surface-2); }
 .fact .tags .sig { border-color: #2b8a3e; color: #2b8a3e; } .fact .tags .nosig { border-color: var(--muted); color: var(--muted); }
+.subhead { margin: 22px 0 0; font-size: 1.05rem; }
+.tbl .cap { font-size: .85rem; color: var(--muted); margin: 0 0 8px; }
+.tbl .tw { overflow: auto; border: 1px solid var(--line); border-radius: 8px; max-height: 360px; }
+.tbl table { border-collapse: collapse; font-size: .82rem; width: 100%; }
+.tbl th, .tbl td { padding: 4px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.tbl th:first-child, .tbl td:first-child { text-align: left; font-weight: 700; }
+.tbl th { background: var(--surface-2); position: sticky; top: 0; }
+.tbl .sel { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); }
+.tbl .tsel { display: flex; align-items: center; gap: 8px; font-size: .85rem; margin-bottom: 8px; }
+.tbl .tsel select { font: inherit; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); max-width: 100%; }
+.tbl .conf-ok, .tbl .conf-low { font-size: .75rem; font-weight: 700; padding: 1px 10px; border-radius: 6px; border: 1px solid; }
+.tbl .conf-ok { color: #2b8a3e; border-color: #2b8a3e; } .tbl .conf-low { color: #c2410c; border-color: #c2410c; }
+.tbl .tmore { font-size: .78rem; color: var(--muted); margin: 6px 0 0; }
 .flegend { margin-top: 12px; font-size: .82rem; color: var(--muted); }
 .flegend b { color: var(--ink); margin-right: 6px; }
 .facts { gap: 16px; }
@@ -247,6 +260,9 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             <div class="conds" id="conds" aria-label="実験の条件"></div>
             <p class="flegend" id="facts-legend"></p>
             <div class="facts" id="facts"></div>
+            <h3 class="subhead" id="tables-head" hidden>表から読み取った数値</h3>
+            <p class="fine" id="tables-note" hidden>表は、PDFの文字の位置から行と列を復元したものです。段組や罫線のない表では、列がずれたり、読み取れなかったりすることがあります。「要確認」の表は特に、元の表と見比べてください。グラフは、選んだ列の数値をそのまま棒にしたものです。</p>
+            <div class="facts tables" id="tables"></div>
             <p class="fine" id="facts-note"></p>
         </section>
 
@@ -369,7 +385,7 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             if (it.hasEOL) { if (line.text.trim()) lines.push(line); line = null; }
         });
         if (line && line.text.trim()) lines.push(line);
-        return lines.map(function (l) { return { text: l.text.replace(/\s+/g, ' ').trim(), h: l.h }; }).filter(function (l) { return l.text; });
+        return lines.map(function (l) { return { text: l.text.replace(/\s+/g, ' ').trim(), h: l.h, y: l.y }; }).filter(function (l) { return l.text; });
     }
     async function readPdf(file) {
         if (!window.pdfjsLib) throw new Error('PDF読み取りライブラリ(pdf.js)を読み込めませんでした。ネットワーク接続を確認してください。');
@@ -377,13 +393,16 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         var pdf = await pdfjsLib.getDocument({ data: buf }).promise;
         var info = {};
         try { info = (await pdf.getMetadata()).info || {}; } catch (e) { /* no metadata */ }
-        var pages = [];
+        var pages = [], raw = [];
         for (var i = 1; i <= pdf.numPages; i++) {
             var page = await pdf.getPage(i);
             var tc = await page.getTextContent();
             pages.push(linesFromItems(tc.items));
+            raw.push(tc.items.filter(function (it) { return typeof it.str === 'string' && it.str.trim(); }).map(function (it) {
+                return { s: it.str, x: it.transform[4], y: it.transform[5], w: it.width || 0, h: Math.abs(it.height || it.transform[3] || 0) };
+            }));
         }
-        return { pages: pages, info: info, fileName: file.name };
+        return { pages: pages, raw: raw, info: info, fileName: file.name };
     }
 
     /* ================= structure analysis ================= */
@@ -452,13 +471,13 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
                 if (kw) { keywords = kw[1]; continue; }
                 if (CAP_RE.test(text)) {
                     flush();
-                    var cap = text, cn = 1;
+                    var cap = text, cn = 1, capY = lines[i].y;
                     while (i + 1 < lines.length && cn < 4 && !/[.。!?！？]$/.test(cap.trim()) && !headingOf(lines[i + 1].text) && !CAP_RE.test(lines[i + 1].text)) {
                         i++; cn++;
                         cap += (CJK.test(cap.slice(-1)) || CJK.test(lines[i].text.charAt(0)) ? '' : ' ') + lines[i].text;
                     }
                     var lm = cap.match(CAP_LABEL);
-                    sentences.push({ text: clean(cap), raw: cap, section: 'caption', page: p + 1, label: lm ? capLabelText(lm[0]) : '図表' });
+                    sentences.push({ text: clean(cap), raw: cap, section: 'caption', page: p + 1, y: capY, label: lm ? capLabelText(lm[0]) : '図表' });
                     continue;
                 }
                 var sec = headingOf(text);
@@ -487,7 +506,7 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         var doiM = firstPage.match(/\b(10\.\d{4,9}\/[^\s"<>]+)/);
         return {
             title: guessTitle(doc), pages: doc.pages.length, sentences: sentences, lang: letters && cjk / letters > 0.2 ? 'ja' : 'en',
-            doi: doiM ? doiM[1].replace(/[.,;)\]]+$/, '') : '', keywords: keywords, headings: Object.keys(sawHeading), chars: all.length
+            doi: doiM ? doiM[1].replace(/[.,;)\]]+$/, '') : '', keywords: keywords, headings: Object.keys(sawHeading), chars: all.length, tables: doc.raw ? extractTables(doc.raw, sentences) : []
         };
     }
 
@@ -861,7 +880,7 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             kept.push(c); set.forEach(function (x) { seenVals[x] = true; });
         });
         kept.sort(function (x, y) { return x.i - y.i; });
-        return { facts: kept, conds: extractConditions(a) };
+        return { facts: kept, conds: extractConditions(a), tables: a.tables || [] };
     }
     function extractConditions(a) {
         var pats = [
@@ -890,7 +909,145 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         var m = t.match(/[(（\[]\s*(?:in\s+|単位[:：]\s*|unit[:：]\s*)?(%|％|hours?|minutes?|mins?|seconds?|分|時間|秒|mg|kg|cm|mm|ms|Hz|dB|円|ドル|points?|ポイント)\s*[)）\]]/i);
         return m ? m[1] : '';
     }
-    function hasNums(n) { return !!(n && (n.facts.length || n.conds.length)); }
+
+    /* ================= tables from text positions ================= */
+    var NUMCELL = /^[<>≤≥~≈]?\s*[-−–+]?\d[\d,]*(?:\.\d+)?\s*(?:%|％)?(?:\s*[±(（]\s*[\d.]+\s*[)）]?)?$/;
+    function isNumCell(t) { var q = t.replace(/[†‡*]+$/g, '').trim(); return q.length <= 22 && NUMCELL.test(q); }
+    function parseCell(t) {
+        var m = String(t).replace(/[†‡*]+$/g, '').trim().match(/^[<>≤≥~≈]?\s*([-−–+]?)(\d[\d,]*(?:\.\d+)?)/);
+        if (!m) return null;
+        return { num: (/[-−–]/.test(m[1]) ? -1 : 1) * parseFloat(m[2].replace(/,/g, '')), numText: m[2] };
+    }
+    function buildRows(items) {
+        var its = items.slice().sort(function (a, b) { return b.y - a.y || a.x - b.x; }), rows = [];
+        its.forEach(function (it) {
+            var r = rows[rows.length - 1];
+            if (r && Math.abs(it.y - r.y) <= Math.max(1.5, 0.5 * Math.min(it.h || 8, r.h))) { r.items.push(it); r.h = Math.max(r.h, it.h || 0); }
+            else rows.push({ y: it.y, h: it.h || 8, items: [it] });
+        });
+        // two-column pages: handle the left and right column separately so that body text beside a table is not merged into its rows
+        var minX = Infinity, maxX = 0;
+        items.forEach(function (it) { minX = Math.min(minX, it.x); maxX = Math.max(maxX, it.x + it.w); });
+        if (maxX - minX > 200 && rows.length > 8) {
+            var mid = (minX + maxX) / 2, side = function (it) { return it.x + it.w / 2 < mid ? 0 : 1; };
+            var cross = rows.filter(function (r) { return r.items.some(function (it) { return it.x < mid - 6 && it.x + it.w > mid + 6; }); }).length;
+            var left = items.filter(function (it) { return side(it) === 0; }).length;
+            if (cross / rows.length <= 0.1 && left >= items.length * 0.25 && left <= items.length * 0.75) {
+                var cols = [[], []];
+                rows.forEach(function (r) {
+                    [0, 1].forEach(function (sd) {
+                        var part = r.items.filter(function (it) { return side(it) === sd; });
+                        if (part.length) cols[sd].push({ y: r.y, h: r.h, items: part, col: sd });
+                    });
+                });
+                return cols[0].concat(cols[1]);
+            }
+        }
+        return rows;
+    }
+    function rowCells(r) {
+        var its = r.items.slice().sort(function (a, b) { return a.x - b.x; }), cells = [], cur = null, lim = Math.max(0.9 * r.h, 3.5);
+        its.forEach(function (it) {
+            var gap = cur ? it.x - cur.x1 : 0;
+            if (cur && gap <= lim) { cur.t += (gap > 0.15 * r.h ? ' ' : '') + it.s; cur.x1 = Math.max(cur.x1, it.x + it.w); }
+            else { cur = { t: it.s, x0: it.x, x1: it.x + it.w }; cells.push(cur); }
+        });
+        cells.forEach(function (c) { c.t = c.t.replace(/\s+/g, ' ').trim(); });
+        return cells.filter(function (c) { return c.t; });
+    }
+    function extractTables(raw, sentences) {
+        var out = [];
+        raw.forEach(function (items, pi) {
+            if (!items.length) return;
+            var rows = buildRows(items), found = [];
+            rows.forEach(function (r) {
+                r.cells = rowCells(r);
+                r.num = r.cells.slice(1).filter(function (c) { return isNumCell(c.t); }).length;
+                r.isT = r.cells.length >= 3 && r.num >= 2;
+            });
+            // consecutive table rows (one non-table row, such as a group label, may sit between them)
+            var cur = null, last = -10;
+            rows.forEach(function (r, i) {
+                if (!r.isT) return;
+                var prev = rows[last];
+                var near = prev && prev.col === r.col && Math.abs(prev.y - r.y) <= 2.8 * Math.max(r.h, prev.h) * (i - last);
+                if (cur && i - last <= 2 && near) cur.push(i); else { cur = [i]; found.push(cur); }
+                last = i;
+            });
+            found.filter(function (b) { return b.length >= 2; }).forEach(function (b) {
+                var body = b.map(function (i) { return rows[i]; }), first = b[0], headRows = [];
+                for (var k = 1; k <= 2; k++) {
+                    var hr = rows[first - k], below = rows[first - k + 1];
+                    if (!hr || hr.col !== rows[first].col || hr.isT || hr.cells.length < 2 || hr.cells.filter(function (c) { return isNumCell(c.t); }).length > 1) break;
+                    if (Math.abs(below.y - hr.y) > 2.8 * Math.max(hr.h, below.h)) break;
+                    headRows.unshift(hr);
+                }
+                var ref = body.reduce(function (m, r) { return r.cells.length > m.cells.length ? r : m; }, body[0]);
+                var anchors = ref.cells.slice(0, 8);
+                var colOf = function (c) {
+                    var best = 0, bd = Infinity, cx = (c.x0 + c.x1) / 2;
+                    anchors.forEach(function (a, k2) {
+                        var ov = Math.max(0, Math.max(a.x0, c.x0) - Math.min(a.x1, c.x1)), d = ov * 1000 + Math.abs((a.x0 + a.x1) / 2 - cx);
+                        if (d < bd) { bd = d; best = k2; }
+                    });
+                    return best;
+                };
+                var place = function (r) { var arr = anchors.map(function () { return ''; }); r.cells.forEach(function (c) { var k2 = colOf(c); arr[k2] = (arr[k2] ? arr[k2] + ' ' : '') + c.t; }); return arr; };
+                var header = anchors.map(function () { return ''; });
+                headRows.forEach(function (hr) { place(hr).forEach(function (t, k2) { if (t) header[k2] = (header[k2] ? header[k2] + ' ' : '') + t; }); });
+                var grid = body.map(place);
+                var fit = body.filter(function (r) { return r.cells.length === anchors.length; }).length / body.length;
+                out.push({
+                    page: pi + 1, top: (headRows[0] || body[0]).y, bottom: body[body.length - 1].y, header: header, rows: grid,
+                    conf: fit >= 0.8 && headRows.length ? 'high' : 'low', label: '表(p.' + (pi + 1) + ')', caption: ''
+                });
+            });
+        });
+        // attach captions: nearest "Table N" / "表N" caption on the same page (by position when known, otherwise in order)
+        var capsAll = sentences.filter(function (s2) { return s2.section === 'caption' && /^(?:Table|表)/.test(s2.label); });
+        // pass 1: a caption just above the table (the usual place); pass 2: for tables still without one, a caption just below
+        [0, 1].forEach(function (pass) {
+            out.forEach(function (tb) {
+                if (tb.caption) return;
+                var caps = capsAll.filter(function (c) { return c.page === tb.page && !c.used; }), best = null, bd = Infinity;
+                caps.forEach(function (c) {
+                    var d;
+                    if (c.y == null) d = pass === 0 ? 1e6 + caps.indexOf(c) : 2e6 + caps.indexOf(c);
+                    else if (pass === 0) d = c.y >= tb.top ? c.y - tb.top : Infinity;
+                    else d = c.y <= tb.bottom ? tb.bottom - c.y : Infinity;
+                    if (d < bd && (d <= 140 || d >= 1e6)) { bd = d; best = c; }
+                });
+                if (best) { best.used = true; tb.label = best.label; tb.caption = best.text; }
+            });
+        });
+        return out;
+    }
+    function tableUnitOf(tb, col) {
+        var h = (tb.header[col] || '').trim(), cells = tb.rows.map(function (r) { return (r[col] || '').replace(/[†‡*]+$/g, '').trim(); });
+        if (cells.filter(function (t) { return /[%％]$/.test(t); }).length >= cells.length * 0.6) return '%';
+        return captionUnit(h) || (/[%％]$/.test(h) ? '%' : '') || captionUnit(tb.caption) || '';
+    }
+    function defaultCol(tb) {
+        for (var k = 1; k < tb.header.length; k++) {
+            if (/^p$|p値|p-?value|^sig|有意/i.test((tb.header[k] || '').trim())) continue;
+            var ok = tb.rows.filter(function (r) { return parseCell(r[k]); }).length;
+            if (ok >= tb.rows.length * 0.6 && ok >= 2) return k;
+        }
+        return null;
+    }
+    function tableChart(tb, col) {
+        var items = [];
+        tb.rows.slice(0, 8).forEach(function (r) {
+            var v = parseCell(r[col]);
+            if (v) items.push({ label: (r[0] || '').slice(0, 14) || ('行' + (items.length + 1)), numText: v.numText, num: v.num });
+        });
+        if (items.length < 2 || items.some(function (it) { return it.num < 0; })) return null;
+        var unit = tableUnitOf(tb, col);
+        if (items.length >= 3) return makeSeries(items.map(function (it) { return it.label; }), items, unit);
+        var mk = function (it) { return { label: it.label, text: fmtVal(it.numText, unit), numText: it.numText, num: it.num }; };
+        return makePair('labels', mk(items[0]), mk(items[1]), unit);
+    }
+    function hasNums(n) { return !!(n && (n.facts.length || n.conds.length || (n.tables && n.tables.length))); }
 
     /* ================= AI rewrite (optional) ================= */
     var SEC_LABEL = { front: '冒頭', abstract: 'Abstract/要旨', intro: '導入', related: '関連研究', method: '方法', results: '結果', discussion: '考察', limitation: '限界/今後', conclusion: '結論', caption: '図表キャプション' };
@@ -1106,7 +1263,8 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         sr.items.forEach(function (it, k) {
             var bx = left + slot * k + (slot - bw) / 2, h = Math.max(2, it.num / scale * H), ref = /前|基準|対照|従来|プラセボ|ベースライン|baseline|control/i.test(it.label);
             add('rect', { x: bx, y: base - h, width: bw, height: h, class: ref ? 'ba' : 'bb' });
-            add('text', { x: bx + bw / 2, y: base - h - 5, 'text-anchor': 'middle', 'font-size': small ? 11 : 14, 'font-weight': 800 }, it.text);
+            var em = 0; it.text.split('').forEach(function (ch) { em += /[\u3040-\u30ff\u4e00-\u9fff]/.test(ch) ? 1 : 0.62; });
+            add('text', { x: bx + bw / 2, y: base - h - 5, 'text-anchor': 'middle', 'font-size': Math.max(8, Math.min(small ? 11 : 14, Math.floor((slot - 3) / em))), 'font-weight': 800 }, it.text);
             var max = small ? 6 : 9;
             labelLines(it.label, max).forEach(function (ln, q) { add('text', { x: bx + bw / 2, y: base + 15 + q * 12, 'text-anchor': 'middle', 'font-size': small ? 10 : 12 }, ln); });
         });
@@ -1127,6 +1285,48 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
     function kindOf(f) { return f.series ? f.series.title : f.pair ? f.pair.title : f.gauge != null ? '割合' : '数値'; }
     function figChips(f) { return (f.cap ? [f.cap] : []).concat(f.figs || []); }
     function whereOf(f) { return [f.page ? 'p.' + f.page : '', f.section === 'caption' ? '図表キャプション' : (f.section ? '章: ' + (SEC_LABEL[f.section] || f.section) : '')].filter(Boolean).join(' ・ '); }
+
+    function renderTables(tables) {
+        var box = $('#tables'), head = $('#tables-head'), note = $('#tables-note');
+        box.textContent = ''; head.hidden = note.hidden = !tables.length;
+        tables.forEach(function (tb) {
+            var card = el('article', 'fact tbl wide none'), hd = el('header', 'fh'), kinds = el('div', 'fk');
+            kinds.appendChild(el('span', 'kind', '表'));
+            kinds.appendChild(el('span', 'figtag', tb.label));
+            kinds.appendChild(el('span', tb.conf === 'high' ? 'conf-ok' : 'conf-low', tb.conf === 'high' ? '列がそろっています' : '要確認: 列がそろっていません'));
+            hd.appendChild(kinds); hd.appendChild(el('span', 'fsrc', 'p.' + tb.page + ' ・ 表から読み取り'));
+            card.appendChild(hd);
+            var fb = el('div', 'fb'), left = el('div', 'fmain');
+            if (tb.caption) left.appendChild(el('p', 'cap', tb.caption));
+            var wrap = el('div', 'tw'), table = el('table'), thead = el('thead'), htr = el('tr'), shown = tb.rows.slice(0, 12);
+            tb.header.forEach(function (h) { htr.appendChild(el('th', null, h)); });
+            thead.appendChild(htr); table.appendChild(thead);
+            var tbody = el('tbody');
+            shown.forEach(function (r) { var tr = el('tr'); r.forEach(function (t) { tr.appendChild(el('td', null, t)); }); tbody.appendChild(tr); });
+            table.appendChild(tbody); wrap.appendChild(table); left.appendChild(wrap);
+            if (tb.rows.length > shown.length) left.appendChild(el('p', 'tmore', 'ほか ' + (tb.rows.length - shown.length) + ' 行は省略しています。'));
+            fb.appendChild(left);
+            var right = el('div', 'fmain'), numCols = [];
+            for (var k = 1; k < tb.header.length; k++) if (tb.rows.filter(function (r) { return parseCell(r[k]); }).length >= 2) numCols.push(k);
+            var chartBox = el('div', 'pair');
+            function setCol(col) {
+                Array.prototype.forEach.call(table.querySelectorAll('th, td'), function (cell) { cell.classList.toggle('sel', cell.cellIndex === col); });
+                chartBox.textContent = '';
+                var ch = tableChart(tb, col);
+                if (ch) chartBox.appendChild(ch.items ? seriesSvg(ch) : pairSvg(ch));
+                else chartBox.appendChild(el('p', 'tmore', 'この列は、負の値や数値でないセルを含むため、グラフにしていません。'));
+            }
+            if (numCols.length) {
+                var sel = el('label', 'tsel'); sel.appendChild(document.createTextNode('グラフにする列'));
+                var dd = el('select'); dd.setAttribute('aria-label', 'グラフにする列');
+                numCols.forEach(function (k) { var o = el('option', null, tb.header[k] || ('列' + (k + 1))); o.value = String(k); dd.appendChild(o); });
+                var dc = defaultCol(tb); if (dc != null) dd.value = String(dc);
+                dd.addEventListener('change', function () { setCol(+dd.value); });
+                sel.appendChild(dd); right.appendChild(sel); right.appendChild(chartBox); setCol(+dd.value);
+            } else right.appendChild(el('p', 'tmore', '数値の列が見つからなかったため、グラフはありません。'));
+            fb.appendChild(right); card.appendChild(fb); box.appendChild(card);
+        });
+    }
     function renderNumbers(nums) {
         var sec = $('#numbers-sec'), conds = $('#conds'), box = $('#facts'), note = $('#facts-note'), legend = $('#facts-legend');
         conds.textContent = ''; box.textContent = ''; legend.textContent = '';
@@ -1134,12 +1334,15 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             var chip = el('span', 'chip'); chip.title = c.sentence;
             chip.appendChild(el('small', null, c.label)); chip.appendChild(document.createTextNode(c.text)); conds.appendChild(chip);
         });
-        if (!nums.facts.length) {
+        if (!nums.facts.length && !(nums.tables || []).length) {
             box.appendChild(el('p', 'empty', '数値を含む結果の文やキャプションを見つけられませんでした。表や図の中の数字は、PDFのテキストとして読めないことがあります。'));
-        } else {
+        }
+        var nTab = (nums.tables || []).length;
+        if (nums.facts.length || nTab) {
             var nChart = nums.facts.filter(function (f) { return f.pair || f.series; }).length, nCap = nums.facts.filter(function (f) { return f.cap; }).length;
-            legend.appendChild(el('b', null, nums.facts.length + '件の数値'));
-            legend.appendChild(document.createTextNode('(バー図 ' + nChart + '件・図表キャプション由来 ' + nCap + '件)　見かた: ↑増えた(緑) ↓減った(橙) 灰色は変化なし・不明 ／ 濃い青の棒=結果、薄い棒=基準・比較元'));
+            if (nums.facts.length) { legend.appendChild(el('b', null, nums.facts.length + '件の数値')); legend.appendChild(document.createTextNode('(バー図 ' + nChart + '件・図表キャプション由来 ' + nCap + '件)')); }
+            if (nTab) { legend.appendChild(el('b', null, (nums.facts.length ? '　' : '') + '表 ' + nTab + '件')); legend.appendChild(document.createTextNode('(下に表示)')); }
+            legend.appendChild(document.createTextNode('　見かた: ↑増えた(緑) ↓減った(橙) 灰色は変化なし・不明 ／ 濃い青の棒=結果、薄い棒=基準・比較元'));
         }
         nums.facts.forEach(function (f) {
             var chart = f.series ? seriesSvg(f.series) : f.pair ? pairSvg(f.pair) : null;
@@ -1172,8 +1375,9 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             var d = el('details'); d.appendChild(el('summary', null, '原文を見る')); d.appendChild(el('blockquote', null, f.sentence)); card.appendChild(d);
             box.appendChild(card);
         });
+        renderTables(nums.tables || []);
         var anySig = nums.facts.some(function (f) { return f.sig; }), anyPair = nums.facts.some(function (f) { return f.pair || f.series; });
-        note.textContent = '本文と図表のキャプションに書かれた数字を抜き出したものです。表や図そのものの中身(セルや軸の数値)は読み取れません。数字の意味や条件は、必ず原文で確認してください。' +
+        note.textContent = '本文・図表のキャプション・表のセルから数字を抜き出したものです。図(グラフ)の中の点や軸の数値は読み取れません。数字の意味や条件は、必ず原文で確認してください。' +
             (anyPair ? ' 2つ以上の値が並んで書かれている箇所は、バー図にしています(軸は0から。「差」は本文の数値から計算した参考値です)。差だけが書かれていて元の値がない場合は、バー図にしていません。' : '') +
             (anySig ? ' 「有意」は、偶然でもこのくらいの差が出る確率(p値)が小さい(一般に0.05未満)ときに使われる言葉です。差の大きさや重要さを示すものではありません。' : '');
         current.hasNums = hasNums(nums);
@@ -1371,12 +1575,68 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         sr.items.forEach(function (it, k) {
             var bx = ax + slot * k + (slot - bw) / 2, bh = Math.max(3, it.num / scale * H), ref = /前|基準|対照|従来|プラセボ|ベースライン|baseline|control/i.test(it.label);
             c.fillStyle = ref ? '#d0ebff' : '#3b5bdb'; c.fillRect(bx, base - bh, bw, bh); c.strokeStyle = EX.ink; c.lineWidth = 4; c.strokeRect(bx, base - bh, bw, bh);
-            c.textAlign = 'center'; c.fillStyle = EX.ink; c.font = '800 ' + (small ? 26 : 32) + 'px ' + FONT; c.fillText(it.text, bx + bw / 2, base - bh - 10);
+            c.textAlign = 'center'; c.fillStyle = EX.ink;
+            var fs = small ? 26 : 32; c.font = '800 ' + fs + 'px ' + FONT;
+            while (fs > 14 && c.measureText(it.text).width > slot - 6) { fs -= 2; c.font = '800 ' + fs + 'px ' + FONT; }
+            c.fillText(it.text, bx + bw / 2, base - bh - 10);
             c.font = (small ? 20 : 24) + 'px ' + FONT; c.fillText(clip(c, it.label, slot - 6), bx + bw / 2, base + 30);
         });
         if (sr.diff) { c.fillStyle = '#3b5bdb'; c.font = '800 20px ' + FONT; c.fillText(clip(c, '最高 ' + sr.hi.label + ' と最低 ' + sr.lo.label + ' の差 ' + sr.diff + (sr.rel ? '(相対 ' + sr.rel + ')' : ''), w - 20), x + w / 2, y + 34); }
         c.fillStyle = EX.muted; c.font = '18px ' + FONT; c.fillText('軸は0から ・ 差は本文の数値から計算した参考値', x + w / 2, y + h - 12);
         c.textAlign = 'left';
+    }
+
+    var TW_MAX = 760, CH_W2 = 660;
+    function layoutTable(tb) {
+        var sc = document.createElement('canvas').getContext('2d'), cols = Math.min(tb.header.length, 6), rows = tb.rows.slice(0, 10), PAD = 22, HEADH = 56;
+        sc.font = '22px ' + FONT;
+        var colW = [], sum = 0;
+        for (var k = 0; k < cols; k++) {
+            var w = sc.measureText(tb.header[k] || '').width;
+            rows.forEach(function (r) { w = Math.max(w, sc.measureText(r[k] || '').width); });
+            colW.push(Math.min(k === 0 ? 230 : 190, Math.max(70, w + 24))); sum += colW[k];
+        }
+        if (sum > TW_MAX) colW = colW.map(function (w2) { return w2 * TW_MAX / sum; });
+        var capLines = tb.caption ? wrapText(sc, tb.caption, TW_MAX).slice(0, 2) : [];
+        var tableH = 44 + rows.length * 40 + ((tb.rows.length > rows.length || tb.header.length > cols) ? 32 : 0);
+        var leftH = capLines.length * 30 + (capLines.length ? 10 : 0) + tableH;
+        return { tb: tb, cols: cols, rows: rows, colW: colW, capLines: capLines, tableH: tableH, h: HEADH + PAD + Math.max(leftH, 330) + 16, col: defaultCol(tb) };
+    }
+    function drawTableCard(c, x, y, w, L) {
+        var tb = L.tb, PAD = 22, HEADH = 56;
+        c.save(); rrect(c, x, y, w, L.h, 10); c.clip();
+        c.fillStyle = '#ffffff'; c.fillRect(x, y, w, L.h); c.fillStyle = '#f3efe3'; c.fillRect(x, y, w, HEADH); c.fillStyle = EX.line; c.fillRect(x, y + HEADH - 3, w, 3);
+        c.fillStyle = EX.muted; c.fillRect(x, y, 14, L.h); c.restore();
+        c.strokeStyle = EX.ink; c.lineWidth = 6; rrect(c, x, y, w, L.h, 10); c.stroke();
+        var hx = x + 14 + PAD, confOk = tb.conf === 'high';
+        c.font = '800 20px ' + FONT;
+        [['表', 'kind'], [tb.label, 'fig'], [confOk ? '列がそろっています' : '要確認: 列がそろっていません', confOk ? 'ok' : 'low']].forEach(function (lb) {
+            var tw = c.measureText(lb[0]).width + 26;
+            if (lb[1] === 'kind') { c.fillStyle = EX.ink; rrect(c, hx, y + 13, tw, 32, 6); c.fill(); c.fillStyle = '#ffffff'; }
+            else if (lb[1] === 'fig') { c.fillStyle = EX.colors[0]; rrect(c, hx, y + 13, tw, 32, 6); c.fill(); c.strokeStyle = EX.ink; c.lineWidth = 3; c.stroke(); c.fillStyle = EX.ink; }
+            else { c.fillStyle = '#ffffff'; rrect(c, hx, y + 13, tw, 32, 6); c.fill(); c.strokeStyle = lb[1] === 'ok' ? '#2b8a3e' : '#c2410c'; c.lineWidth = 3; c.stroke(); c.fillStyle = lb[1] === 'ok' ? '#2b8a3e' : '#c2410c'; }
+            c.fillText(lb[0], hx + 13, y + 37); hx += tw + 8;
+        });
+        c.fillStyle = EX.muted; c.font = '20px ' + FONT; c.textAlign = 'right'; c.fillText('p.' + tb.page + ' ・ 表から読み取り', x + w - PAD, y + 36); c.textAlign = 'left';
+        var tx = x + 14 + PAD, ty = y + HEADH + PAD;
+        c.fillStyle = EX.muted; c.font = '22px ' + FONT;
+        L.capLines.forEach(function (l, n) { c.fillText(l, tx, ty + 22 + n * 30); });
+        ty += L.capLines.length ? L.capLines.length * 30 + 10 : 0;
+        var gx = [tx]; L.colW.forEach(function (cw) { gx.push(gx[gx.length - 1] + cw); });
+        for (var r = -1; r < L.rows.length; r++) {
+            var ry = ty + (r < 0 ? 0 : 44 + r * 40), rh = r < 0 ? 44 : 40, cells = r < 0 ? tb.header : L.rows[r];
+            if (r < 0) { c.fillStyle = '#efeadb'; c.fillRect(tx, ry, gx[L.cols] - tx, rh); }
+            for (var k = 0; k < L.cols; k++) {
+                if (k === L.col) { c.fillStyle = '#e4ebff'; c.fillRect(gx[k], ry, L.colW[k], rh); }
+                var txt = clip(c, cells[k] || '', L.colW[k] - 16), num = k > 0 && isNumCell(cells[k] || '');
+                c.fillStyle = EX.ink; c.font = (r < 0 || k === 0 ? '800 ' : '') + '22px ' + FONT;
+                if (num || r < 0 && k > 0) { c.textAlign = 'right'; c.fillText(txt, gx[k] + L.colW[k] - 8, ry + 28); c.textAlign = 'left'; } else c.fillText(txt, gx[k] + 8, ry + 28);
+            }
+            c.fillStyle = EX.line; c.fillRect(tx, ry + rh - 2, gx[L.cols] - tx, 2);
+        }
+        if (tb.rows.length > L.rows.length || tb.header.length > L.cols) { c.fillStyle = EX.muted; c.font = '20px ' + FONT; c.fillText('※ 一部の行・列を省略しています', tx, ty + L.tableH - 8); }
+        var ch = L.col != null ? tableChart(tb, L.col) : null;
+        if (ch) { var cx = x + w - PAD - CH_W2, cy = y + HEADH + PAD; if (ch.items) drawSeries(c, cx, cy, CH_W2, 310, ch); else drawPair(c, cx, cy, CH_W2, 310, ch); c.fillStyle = EX.muted; c.font = '20px ' + FONT; c.fillText('グラフにした列: ' + (tb.header[L.col] || ''), cx, cy + 334); }
     }
     async function drawNumbers(nums, title, opt) {
         var W = EX.W, M = EX.M, FW = W - M * 2, CWn = EX.PW, meta = BOOK_META.numbers, sc = document.createElement('canvas').getContext('2d');
@@ -1408,8 +1668,9 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             if (openRow) { openRow.push(it); openRow = null; } else { openRow = [it]; rows.push(openRow); }
         });
         var rowH = rows.map(function (r) { return Math.max.apply(null, r.map(function (x) { return x.h; })); });
+        var tl = (nums.tables || []).map(layoutTable), tablesH = tl.length ? 76 + tl.reduce(function (s0, L) { return s0 + L.h + EX.G + 40; }, 0) : 0;
         var bodyH = rowH.reduce(function (s0, h) { return s0 + h + EX.G; }, 0), footH = 110;
-        var H = topH + condH + (bodyH || 80) + footH;
+        var H = topH + condH + (bodyH || (tl.length ? 0 : 80)) + tablesH + footH;
         var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
         var c = cv.getContext('2d'); c.fillStyle = '#ffffff'; c.fillRect(0, 0, W, H);
         c.font = '800 32px ' + FONT; var pw = c.measureText(meta.label).width + 44;
@@ -1424,7 +1685,7 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             c.fillText(nums.conds[k].text, x + 18 + c.measureText(nums.conds[k].label + '  ').width, y + 37);
         });
         var y0 = topH + condH;
-        if (!items.length) { c.fillStyle = EX.muted; c.font = '26px ' + FONT; c.fillText('数値を含む結果の文やキャプションを見つけられませんでした。', M, y0 + 40); }
+        if (!items.length && !tl.length) { c.fillStyle = EX.muted; c.font = '26px ' + FONT; c.fillText('数値を含む結果の文やキャプションを見つけられませんでした。', M, y0 + 40); }
         rows.forEach(function (row, r) {
             var rh = rowH[r];
             row.forEach(function (it, k) {
@@ -1470,8 +1731,14 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
             });
             y0 += rh + EX.G;
         });
+        if (tl.length) {
+            c.fillStyle = EX.ink; c.font = '800 30px ' + FONT; c.fillText('表から読み取った数値', M, y0 + 34); c.fillRect(M, y0 + 46, FW, 3);
+            c.fillStyle = EX.muted; c.font = '20px ' + FONT; c.fillText('PDFの文字の位置から行と列を復元したものです。元の表と見比べてください。', M + 360, y0 + 34);
+            y0 += 76;
+            tl.forEach(function (L) { drawTableCard(c, M, y0, FW, L); y0 += L.h + EX.G + 40; });
+        }
         c.fillStyle = EX.muted; c.font = '22px ' + FONT;
-        var fl = wrapText(c, '出典: ' + title, FW).slice(0, 1).concat(wrapText(c, '本文と図表のキャプションに書かれた数字を抜き出したもので、表や図そのものの中身は読み取れません。数字の意味や条件は必ず原文で確認してください。(4コマ論文で作成)', FW));
+        var fl = wrapText(c, '出典: ' + title, FW).slice(0, 1).concat(wrapText(c, '本文・図表のキャプション・表のセルから数字を抜き出したもので、図(グラフ)の中の値は読み取れません。数字の意味や条件は必ず原文で確認してください。(4コマ論文で作成)', FW));
         fl.slice(0, 3).forEach(function (l, n) { c.fillText(l, M, y0 + 14 + n * 30); });
         return cv;
     }
@@ -1705,13 +1972,19 @@ dialog .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
         '結果として、課題の提出率は91%で、群間に差は見られなかった。',
         '図1. 群別の平均睡眠時間(時間)。短時間群 6.1、中時間群 6.5、長時間群 7.0。',
         '表1 就寝時刻のずれ(分)。調査前 42、調査後 18。',
+        '表2 群別の平均睡眠時間(時間)。',
         '4. 考察',
         'この結果は、朝の光が体内時計を整え、夜の眠気を早めた可能性を示唆している。',
         '5. 今後の課題',
         '今後は、複数の学校や季節をまたいだ検証が必要である。また、睡眠時間の測定を自己記録に頼った点も限界である。'
-    ]].map(function (ls) { return ls.map(function (t, i) { return { text: t, h: i === 0 ? 20 : 10 }; }); });
+    ]].map(function (ls) { return ls.map(function (t, i) { return { text: t, h: i === 0 ? 20 : 10, y: /^表2/.test(t) ? 720 : /^表1/.test(t) ? 480 : undefined }; }); });
+    var SAMPLE_RAW = [(function () {
+        var rows = [['群', '調査前', '調査後', '差'], ['屋外活動群', '6.2', '6.8', '+0.6'], ['対照群', '6.3', '6.3', '0.0'], ['全体', '6.2', '6.5', '+0.3']], xs = [72, 220, 320, 420], out = [];
+        rows.forEach(function (r, ri) { r.forEach(function (t, ci) { out.push({ s: t, x: xs[ci], y: 700 - ri * 20, w: t.length * (ci ? 6 : 10), h: 10 }); }); });
+        return out;
+    })()];
     $('#sample-btn').addEventListener('click', function () {
-        run({ pages: SAMPLE, info: { Title: '朝の光が高校生の睡眠に与える影響(デモ用・架空の論文)' }, fileName: 'sample.pdf' });
+        run({ pages: SAMPLE, raw: SAMPLE_RAW, info: { Title: '朝の光が高校生の睡眠に与える影響(デモ用・架空の論文)' }, fileName: 'sample.pdf' });
     });
 })();
 </script>
